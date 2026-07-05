@@ -122,7 +122,7 @@ export function StageReveal({ contestant, onContinue }: StageRevealProps) {
           >
             PRIZE LADDER
           </div>
-          <MoneyLadder currentLevel={1} />
+          <MoneyLadder currentLevel={1} finalLevel={1} />
         </div>
       )}
 
@@ -140,7 +140,7 @@ export function StageReveal({ contestant, onContinue }: StageRevealProps) {
           >
             YOUR LIFELINES
           </div>
-          <LifelinesBar usedLifelines={new Set()} onUseLifeline={() => {}} />
+          <LifelinesBar usedLifelines={new Set()} onUse={() => {}} />
         </div>
       )}
 

@@ -177,6 +177,7 @@ export default function Home() {
       "contestant_intro": "welcome",
       "contestant_form": "contestant_intro",
       "transition_video": "contestant_form",
+      "transition_background": "transition_video",
       "introduction": "transition_video",
       "gameplay": "introduction",
       "end_walk_away": "gameplay",
