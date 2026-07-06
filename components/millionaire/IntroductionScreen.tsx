@@ -207,7 +207,7 @@ export function IntroductionScreen({ contestant, onContinue }: IntroductionScree
             PRIZE LADDER
           </div>
           <div className="relative">
-            {MONEY_LADDER.map((item) => (
+            {MONEY_LADDER.map((item, index) => (
               <div
                 key={item.level}
                 className="money-row relative"
@@ -221,6 +221,7 @@ export function IntroductionScreen({ contestant, onContinue }: IntroductionScree
                   transition: "all 0.3s ease-out",
                   border: item.level === highlightLevel ? "2px solid #FFA500" : "none",
                   boxShadow: item.level === highlightLevel ? "0 0 20px rgba(212,175,55,0.8)" : "none",
+                  animation: showMoneyLadder ? `fly-in-bottom 1s ease-out ${index * 0.1}s both` : "none",
                 }}
               >
                 <span
@@ -266,6 +267,16 @@ export function IntroductionScreen({ contestant, onContinue }: IntroductionScree
       )}
 
       <style>{`
+        @keyframes fly-in-bottom {
+          from {
+            opacity: 0;
+            transform: translateY(100px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
         @keyframes slide-in-right {
           from {
             opacity: 0;

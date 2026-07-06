@@ -13,18 +13,42 @@ export function SafeHavenFrame({ amount, visible }: SafeHavenFrameProps) {
       className="safe-haven-frame"
       style={{
         position: "fixed",
-        bottom: "30px",
+        top: "50%",
         left: "50%",
-        transform: "translateX(-50%)",
+        transform: "translate(-50%, calc(-50% + 280px))",
         zIndex: 9999,
-        width: "90%",
-        maxWidth: "1200px",
-        height: "100px",
+        width: "70%",
+        maxWidth: "900px",
+        height: "90px",
         opacity: visible ? 1 : 0,
-        transition: "opacity 1s ease-in-out",
-        animation: visible ? "fadeInScale 1s ease-out" : "none",
+        transition: "opacity 0.5s ease-in",
       }}
     >
+      {/* Left line extending to screen edge */}
+      <div
+        style={{
+          position: "absolute",
+          left: "-100vw",
+          top: "50%",
+          width: "100vw",
+          height: "3px",
+          background: "linear-gradient(to right, transparent 0%, #FFD700 100%)",
+          transform: "translateY(-50%)",
+        }}
+      />
+      
+      {/* Right line extending to screen edge */}
+      <div
+        style={{
+          position: "absolute",
+          right: "-100vw",
+          top: "50%",
+          width: "100vw",
+          height: "3px",
+          background: "linear-gradient(to left, transparent 0%, #FFD700 100%)",
+          transform: "translateY(-50%)",
+        }}
+      />
       {/* Hexagonal shape with pointed ends */}
       <div
         style={{
@@ -33,12 +57,14 @@ export function SafeHavenFrame({ amount, visible }: SafeHavenFrameProps) {
           height: "100%",
           background: "linear-gradient(135deg, #003087 0%, #0A2A6B 100%)",
           clipPath: "polygon(3% 0%, 97% 0%, 100% 50%, 97% 100%, 3% 100%, 0% 50%)",
-          border: "6px solid #FFD700",
+          border: "2px solid #FFD700",
           boxShadow: "0 0 30px rgba(255, 215, 0, 0.6), 0 0 60px rgba(255, 215, 0, 0.3), inset 0 0 20px rgba(255, 215, 0, 0.2)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           transition: "transform 0.3s ease",
+          outline: "2px solid #FFD700",
+          outlineOffset: "-2px",
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.transform = "scale(1.02)";
@@ -62,7 +88,7 @@ export function SafeHavenFrame({ amount, visible }: SafeHavenFrameProps) {
         <p
           style={{
             fontFamily: "Arial, sans-serif",
-            fontSize: "48px",
+            fontSize: "42px",
             fontWeight: "bold",
             color: "#FFED00",
             textShadow: "0 4px 12px rgba(0, 0, 0, 0.8), 0 0 20px rgba(255, 237, 0, 0.5)",
@@ -72,22 +98,11 @@ export function SafeHavenFrame({ amount, visible }: SafeHavenFrameProps) {
             zIndex: 1,
           }}
         >
-          {amount.toLocaleString("vi-VN")}
+          YOU JUST WON {amount.toLocaleString("en-US")}
         </p>
       </div>
 
       <style jsx>{`
-        @keyframes fadeInScale {
-          0% {
-            opacity: 0;
-            transform: translateX(-50%) scale(0.8);
-          }
-          100% {
-            opacity: 1;
-            transform: translateX(-50%) scale(1);
-          }
-        }
-
         @media (max-width: 768px) {
           .safe-haven-frame {
             width: 95% !important;

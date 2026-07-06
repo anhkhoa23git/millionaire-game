@@ -5,6 +5,7 @@ import { AnswerBox } from "./AnswerBox";
 import { LifelinesBar } from "./LifelinesBar";
 import { MillionaireLogo } from "./MillionaireLogo";
 import { SafeHavenFrame } from "./SafeHavenFrame";
+import { SafeHavenMoneyLadder } from "./SafeHavenMoneyLadder";
 import { QUESTIONS, formatMoney, SAFE_HAVENS } from "@/lib/millionaire/questions";
 import {
   LifelineId,
@@ -61,6 +62,9 @@ export function GameplayScreen(props: GameplayScreenProps) {
   const [showSafeHavenFrame, setShowSafeHavenFrame] = useState(false);
   const [safeHavenAmount, setSafeHavenAmount] = useState(0);
   const [fadeOutContent, setFadeOutContent] = useState(false);
+  const [waitingForClick, setWaitingForClick] = useState(false);
+  const [showCorrectMessage, setShowCorrectMessage] = useState(false);
+  const [showSafeHavenMoneyLadder, setShowSafeHavenMoneyLadder] = useState(false);
 
   const handleAnswerClick = useCallback(
     (idx: number) => {
@@ -78,55 +82,54 @@ export function GameplayScreen(props: GameplayScreenProps) {
     setShowFinalConfirm(false);
     setRevealState("revealing");
 
-    // Drum roll pause 1.5s
+    // Wait 3s before showing correct state
     setTimeout(() => {
       const isCorrect = selectedAnswer === question.correct;
       console.log("Answer check:", { isCorrect, currentLevel, questionSafe: question.safe });
       if (isCorrect) {
         setRevealState("correct");
+        setShowCorrectMessage(true);
         
-        // Check if this is safe haven 1 (level 3)
-        const isSafeHaven1 = currentLevel === 3 && question.safe;
-        console.log("Safe haven 1 check:", { currentLevel, questionSafe: question.safe, isSafeHaven1 });
+        // Play audio: moc3 for level 3, dapandung for others
+        const audioFile = currentLevel === 3 ? "/moc3.mp3" : "/dapandung.mp3";
+        const audio = new Audio(audioFile);
+        audio.play().catch((e) => console.error("Audio play failed:", e));
         
-        if (isSafeHaven1) {
-          console.log("🎉 Safe haven 1 celebration triggered!");
-          // Safe haven 1: special celebration
-          setTimeout(() => {
-            // Play safe haven music
-            const audio = new Audio("/safe-haven-3.ogg");
-            audio.play().catch((e) => console.error("Audio play failed:", e));
-            
-            // Fade out content
-            setFadeOutContent(true);
-            
-            // Show frame after fade out
-            setTimeout(() => {
-              setSafeHavenAmount(question.amount);
-              setShowSafeHavenFrame(true);
-              
-              // Continue after 5 seconds
-              setTimeout(() => {
-                setShowSafeHavenFrame(false);
-                setFadeOutContent(false);
-                if (doubleDipActive) {
-                  setDoubleDipActive(false);
-                  setDoubleDipGuessesLeft(0);
-                }
-                onCorrect(currentLevel + 1);
-              }, 5000);
-            }, 1000);
-          }, 2500);
-        } else {
-          // Normal correct answer
-          setTimeout(() => {
-            if (doubleDipActive) {
-              setDoubleDipActive(false);
-              setDoubleDipGuessesLeft(0);
-            }
-            onCorrect(currentLevel + 1);
-          }, 2500);
+        // For level 3: play mocintro after moc3 ends
+        if (currentLevel === 3) {
+          audio.addEventListener('ended', () => {
+            const mocintroAudio = new Audio("/mocintro.mp3");
+            mocintroAudio.play().catch((e) => console.error("Mocintro audio play failed:", e));
+          });
         }
+        
+        // Wait 3s for "CORRECT" message, then hide it and show prize frame
+        setTimeout(() => {
+          setShowCorrectMessage(false);
+          
+          // Fade out question and answers
+          setFadeOutContent(true);
+          
+          // Show prize won frame after 500ms
+          setTimeout(() => {
+            setSafeHavenAmount(question.amount);
+            setShowSafeHavenFrame(true);
+            
+            // Hide frame after 5s
+            setTimeout(() => {
+              setShowSafeHavenFrame(false);
+              
+              // Special handling for level 3: show money ladder after 2s delay
+              if (currentLevel === 3) {
+                setTimeout(() => {
+                  setShowSafeHavenMoneyLadder(true);
+                }, 2000);
+              } else {
+                setWaitingForClick(true);
+              }
+            }, 5000);
+          }, 500);
+        }, 3000);
       } else {
         // If double dip active and guesses left, just shake and reset
         if (doubleDipActive && doubleDipGuessesLeft > 1) {
@@ -164,6 +167,29 @@ export function GameplayScreen(props: GameplayScreenProps) {
     setSelectedAnswer(null);
     setRevealState("idle");
   }, []);
+
+  // Handle click to continue after prize display
+  const handleClickToContinue = useCallback(() => {
+    if (!waitingForClick) return;
+    setWaitingForClick(false);
+    setFadeOutContent(false);
+    if (doubleDipActive) {
+      setDoubleDipActive(false);
+      setDoubleDipGuessesLeft(0);
+    }
+    onCorrect(currentLevel + 1);
+  }, [waitingForClick, doubleDipActive, currentLevel, onCorrect, setDoubleDipActive, setDoubleDipGuessesLeft]);
+
+  // Handle money ladder continue (for level 3)
+  const handleMoneyLadderContinue = useCallback(() => {
+    setShowSafeHavenMoneyLadder(false);
+    setFadeOutContent(false);
+    if (doubleDipActive) {
+      setDoubleDipActive(false);
+      setDoubleDipGuessesLeft(0);
+    }
+    onCorrect(currentLevel + 1);
+  }, [doubleDipActive, currentLevel, onCorrect, setDoubleDipActive, setDoubleDipGuessesLeft]);
 
   const handleUseLifeline = useCallback(
     (id: LifelineId) => {
@@ -222,8 +248,9 @@ export function GameplayScreen(props: GameplayScreenProps) {
 
   return (
     <div
-      className="gameplay-screen relative w-full h-full overflow-hidden"
+      className="gameplay-screen relative w-full h-full overflow-hidden cursor-pointer"
       style={{backgroundImage: "url('/gameplay-background.png')", backgroundSize: "cover", backgroundPosition: "center"}}
+      onClick={waitingForClick ? handleClickToContinue : undefined}
     >
       {/* Dark overlay for better text readability */}
       <div
@@ -484,29 +511,54 @@ export function GameplayScreen(props: GameplayScreenProps) {
       )}
 
       {/* Reveal overlay text */}
-      {(revealState === "correct" || revealState === "wrong") && (
+      {showCorrectMessage && revealState === "correct" && (
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30">
           <div
             className="px-8 py-3 rounded-lg"
             style={{
-              background: revealState === "correct" ? "#4FAE1A" : "#D0021B",
+              background: "#4FAE1A",
               color: "#FFFFFF",
               fontFamily: "Arial, sans-serif",
               fontSize: "20px",
               fontWeight: "bold",
               letterSpacing: "0.1em",
-              boxShadow: "0 0 24px " + (revealState === "correct" ? "rgba(79,174,26,0.6)" : "rgba(208,2,27,0.6)"),
+              boxShadow: "0 0 24px rgba(79,174,26,0.6)",
             }}
           >
-            {revealState === "correct"
-              ? `CORRECT! Moving to ${formatMoney(QUESTIONS[currentLevel]?.amount || 0)}`
-              :  `WRONG — The correct answer was ${["A", "B", "C", "D"][question.correct]}`}
+            CORRECT! Moving to {formatMoney(QUESTIONS[currentLevel]?.amount || 0)}
+          </div>
+        </div>
+      )}
+      
+      {/* Wrong answer message */}
+      {revealState === "wrong" && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30">
+          <div
+            className="px-8 py-3 rounded-lg"
+            style={{
+              background: "#D0021B",
+              color: "#FFFFFF",
+              fontFamily: "Arial, sans-serif",
+              fontSize: "20px",
+              fontWeight: "bold",
+              letterSpacing: "0.1em",
+              boxShadow: "0 0 24px rgba(208,2,27,0.6)",
+            }}
+          >
+            WRONG — The correct answer was {["A", "B", "C", "D"][question.correct]}
           </div>
         </div>
       )}
 
       {/* Safe Haven Frame */}
       <SafeHavenFrame amount={safeHavenAmount} visible={showSafeHavenFrame} />
+      
+      {/* Safe Haven Money Ladder (for level 3 only) */}
+      <SafeHavenMoneyLadder 
+        visible={showSafeHavenMoneyLadder} 
+        safeHavenLevel={3} 
+        onContinue={handleMoneyLadderContinue}
+      />
     </div>
   );
 }
