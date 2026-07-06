@@ -9,6 +9,7 @@ import { Question, formatMoney } from "@/lib/millionaire/questions";
 import { PrizeStep } from "@/lib/millionaire/prize";
 import { GameSettings, timeLimitForLevel } from "@/lib/millionaire/settings";
 import { audioManager } from "@/lib/millionaire/audio";
+import { setSkipHandler } from "@/lib/millionaire/skip";
 import {
   LifelineId,
   simulateAudiencePoll,
@@ -41,7 +42,8 @@ type RevealState =
   | "selected"       // answer selected, awaiting final confirm
   | "revealing"      // drum roll
   | "correct"        // green reveal
-  | "wrong";         // red reveal
+  | "wrong"          // red reveal — question lost (or timed out)
+  | "dip_wrong";     // Double Dip first miss: mark red, do NOT reveal the answer
 
 export function GameplayScreen(props: GameplayScreenProps) {
   const {
@@ -76,16 +78,41 @@ export function GameplayScreen(props: GameplayScreenProps) {
   const [safeHavenAmount, setSafeHavenAmount] = useState(0);
   const [fadeOutContent, setFadeOutContent] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
+  // 50:50 and Double Dip cannot be combined on the same question — using one
+  // blocks the other until the next question (this component remounts per
+  // level, so the flag resets automatically).
+  const [fiftyUsedHere, setFiftyUsedHere] = useState(false);
+  const [lifelineNotice, setLifelineNotice] = useState<string | null>(null);
   const timeouts = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const skipCleanupRef = useRef<(() => void) | null>(null);
 
   const schedule = useCallback((fn: () => void, ms: number) => {
     timeouts.current.push(setTimeout(fn, ms));
+  }, []);
+
+  // Wrap a reveal-segment continuation so it (a) runs exactly once, whether
+  // reached by its scheduled timer or by the user skipping, and (b) is
+  // registered as the current skip target while the segment plays.
+  const makeSkippable = useCallback((finish: () => void) => {
+    const done = () => {
+      skipCleanupRef.current?.();
+      skipCleanupRef.current = null;
+      timeouts.current.forEach(clearTimeout);
+      timeouts.current = [];
+      finish();
+    };
+    skipCleanupRef.current = setSkipHandler(() => {
+      audioManager.stopAll(); // fast-forward: cut segment audio, jump to end state
+      done();
+    });
+    return done;
   }, []);
 
   useEffect(() => {
     const pending = timeouts.current;
     return () => {
       pending.forEach(clearTimeout);
+      skipCleanupRef.current?.();
       audioManager.stopSuspense();
     };
   }, []);
@@ -120,6 +147,16 @@ export function GameplayScreen(props: GameplayScreenProps) {
         setRevealState("correct");
         audioManager.sfx("correct");
 
+        // Segment end state: advance to the next question. GameplayScreen
+        // remounts (key={level}) so local reveal state resets itself.
+        const finishCorrect = makeSkippable(() => {
+          if (doubleDipActive) {
+            setDoubleDipActive(false);
+            setDoubleDipGuessesLeft(0);
+          }
+          onCorrect(currentLevel + 1);
+        });
+
         // Safe haven celebration (not on the final question — the win screen handles that)
         const isSafeHavenStop = (step?.safe ?? false) && currentLevel < totalQuestions;
 
@@ -130,44 +167,30 @@ export function GameplayScreen(props: GameplayScreenProps) {
             schedule(() => {
               setSafeHavenAmount(step.amount);
               setShowSafeHavenFrame(true);
-              schedule(() => {
-                setShowSafeHavenFrame(false);
-                setFadeOutContent(false);
-                if (doubleDipActive) {
-                  setDoubleDipActive(false);
-                  setDoubleDipGuessesLeft(0);
-                }
-                onCorrect(currentLevel + 1);
-              }, 5000);
+              schedule(finishCorrect, 5000);
             }, 1000);
           }, 2500);
         } else {
-          schedule(() => {
-            if (doubleDipActive) {
-              setDoubleDipActive(false);
-              setDoubleDipGuessesLeft(0);
-            }
-            onCorrect(currentLevel + 1);
-          }, 2500);
+          schedule(finishCorrect, 2500);
         }
+      } else if (doubleDipActive && doubleDipGuessesLeft > 1) {
+        // === Double Dip, first miss ===
+        // Mark ONLY the picked answer wrong (never reveal the correct one),
+        // then return to idle with that answer disabled for guess #2.
+        setRevealState("dip_wrong");
+        audioManager.sfx("wrong");
+        const finishDip = makeSkippable(() => {
+          setRevealState("idle");
+          setSelectedAnswer(null);
+          setDisabledAnswers(new Set([...disabledAnswers, selectedAnswer]));
+          setDoubleDipGuessesLeft(doubleDipGuessesLeft - 1);
+        });
+        schedule(finishDip, 1500);
       } else {
-        // If double dip active and guesses left, just shake and reset
-        if (doubleDipActive && doubleDipGuessesLeft > 1) {
-          setRevealState("wrong");
-          audioManager.sfx("wrong");
-          schedule(() => {
-            setRevealState("idle");
-            setSelectedAnswer(null);
-            setDisabledAnswers(new Set([...disabledAnswers, selectedAnswer]));
-            setDoubleDipGuessesLeft(doubleDipGuessesLeft - 1);
-          }, 1500);
-        } else {
-          setRevealState("wrong");
-          audioManager.sfx("wrong");
-          schedule(() => {
-            onWrong();
-          }, 3000);
-        }
+        // Wrong for real (second dip guess counts as a normal answer)
+        setRevealState("wrong");
+        audioManager.sfx("wrong");
+        schedule(makeSkippable(onWrong), 3000);
       }
     }, suspenseMs);
   }, [
@@ -185,6 +208,7 @@ export function GameplayScreen(props: GameplayScreenProps) {
     setDoubleDipActive,
     setDoubleDipGuessesLeft,
     schedule,
+    makeSkippable,
   ]);
 
   const handleCancelFinal = useCallback(() => {
@@ -195,25 +219,36 @@ export function GameplayScreen(props: GameplayScreenProps) {
   }, []);
 
   const handleTimeUp = useCallback(() => {
-    if (revealState === "correct" || revealState === "wrong" || timedOut) return;
+    if (revealState !== "idle" || timedOut) return;
     setTimedOut(true);
     setShowFinalConfirm(false);
     setRevealState("wrong");
     audioManager.stopSuspense();
     audioManager.sfx("wrong");
-    schedule(() => {
-      onTimeout();
-    }, 3000);
-  }, [revealState, timedOut, onTimeout, schedule]);
+    schedule(makeSkippable(onTimeout), 3000);
+  }, [revealState, timedOut, onTimeout, schedule, makeSkippable]);
+
+  // Lifelines blocked on this question (not consumed, just unavailable now)
+  const blockedLifelines = new Set<LifelineId>();
+  if (fiftyUsedHere) blockedLifelines.add("double");
+  if (doubleDipActive) blockedLifelines.add("fifty");
 
   const handleUseLifeline = useCallback(
     (id: LifelineId) => {
       if (usedLifelines.has(id)) return;
       if (revealState !== "idle") return;
+      if ((id === "double" && fiftyUsedHere) || (id === "fifty" && doubleDipActive)) {
+        // Blocked combo — light feedback, lifeline is NOT consumed
+        audioManager.sfx("timerWarning");
+        setLifelineNotice("50:50 và Double Dip không dùng chung trong 1 câu");
+        schedule(() => setLifelineNotice(null), 2500);
+        return;
+      }
       audioManager.sfx("lifeline");
       onUseLifeline(id);
 
       if (id === "fifty") {
+        setFiftyUsedHere(true);
         // Disable 2 wrong answers (keep correct + 1 wrong)
         const wrongIndices = [0, 1, 2, 3].filter((i) => i !== question.correct);
         const shuffled = wrongIndices.sort(() => Math.random() - 0.5);
@@ -237,6 +272,9 @@ export function GameplayScreen(props: GameplayScreenProps) {
       setDisabledAnswers,
       setDoubleDipActive,
       setDoubleDipGuessesLeft,
+      fiftyUsedHere,
+      doubleDipActive,
+      schedule,
     ]
   );
 
@@ -277,6 +315,8 @@ export function GameplayScreen(props: GameplayScreenProps) {
       if (idx === selectedAnswer) return "wrong";
       if (idx === question.correct) return "correct";
     }
+    // Double Dip first miss: mark the pick wrong but keep the answer secret
+    if (revealState === "dip_wrong" && idx === selectedAnswer) return "wrong";
     if (selectedAnswer === idx) return "selected";
     return "default";
   };
@@ -296,7 +336,7 @@ export function GameplayScreen(props: GameplayScreenProps) {
   return (
     <div
       className={`gameplay-screen relative w-full h-full overflow-hidden flex flex-col ${
-        revealState === "wrong" ? "shake-screen" : ""
+        revealState === "wrong" || revealState === "dip_wrong" ? "shake-screen" : ""
       }`}
       style={{
         backgroundImage: "url('/gameplay-background.png')",
@@ -329,7 +369,7 @@ export function GameplayScreen(props: GameplayScreenProps) {
       )}
 
       {/* Result flash */}
-      {(revealState === "correct" || revealState === "wrong") && (
+      {(revealState === "correct" || revealState === "wrong" || revealState === "dip_wrong") && (
         <div
           className="absolute inset-0 pointer-events-none z-[15]"
           style={{
@@ -346,9 +386,25 @@ export function GameplayScreen(props: GameplayScreenProps) {
         <div className="flex flex-col" style={{ gap: "6px" }}>
           <LifelinesBar
             usedLifelines={usedLifelines}
+            blockedLifelines={blockedLifelines}
             onUse={handleUseLifeline}
             disabled={revealState !== "idle"}
           />
+          {lifelineNotice && (
+            <div
+              className="px-3 py-1 text-center"
+              style={{
+                fontSize: "clamp(10px, 1cqw, 12px)",
+                background: "rgba(208,2,27,0.15)",
+                border: "1px solid var(--red)",
+                color: "#FF9B9B",
+                borderRadius: "4px",
+                animation: "fade-in 0.2s ease-out",
+              }}
+            >
+              {lifelineNotice}
+            </div>
+          )}
           {doubleDipActive && (
             <div
               className="px-3 py-1 tracking-widest text-center"
@@ -571,10 +627,10 @@ export function GameplayScreen(props: GameplayScreenProps) {
       )}
 
       {/* Reveal overlay text */}
-      {(revealState === "correct" || revealState === "wrong") && (
+      {(revealState === "correct" || revealState === "wrong" || revealState === "dip_wrong") && (
         <div
           className="absolute left-1/2 -translate-x-1/2 z-30"
-          style={{ bottom: "clamp(8px, 2cqh, 24px)", maxWidth: "94cqw" }}
+          style={{ bottom: "clamp(20px, 3.5cqh, 32px)", maxWidth: "94cqw" }}
         >
           <div
             className="px-6 py-3 rounded-lg text-center"
@@ -591,6 +647,8 @@ export function GameplayScreen(props: GameplayScreenProps) {
               ? currentLevel >= totalQuestions
                 ? "CORRECT!"
                 : `CORRECT! Moving to ${formatMoney(ladder[currentLevel]?.amount || 0)}`
+              : revealState === "dip_wrong"
+              ? "WRONG — DOUBLE DIP: 1 GUESS LEFT!"
               : timedOut
               ? `TIME'S UP — The correct answer was ${["A", "B", "C", "D"][question.correct]}`
               : `WRONG — The correct answer was ${["A", "B", "C", "D"][question.correct]}`}

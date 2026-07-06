@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { ContestantInfo } from "@/lib/millionaire/state";
+import { setSkipHandler } from "@/lib/millionaire/skip";
 import { formatMoney } from "@/lib/millionaire/questions";
 import { PrizeStep } from "@/lib/millionaire/prize";
 import { LIFELINES } from "@/lib/millionaire/lifelines";
@@ -70,6 +71,25 @@ export function IntroductionScreen({ ladder, onContinue }: IntroductionScreenPro
       timeouts.current = [];
     };
   }, [ladder, totalLevels]);
+
+  // Fast-forward the ladder animation: cancel pending steps, silence the
+  // music, and jump straight to the finished state (row transitions are
+  // 0.3s so the jump still eases in, no hard cut).
+  const fastForward = useCallback(() => {
+    timeouts.current.forEach(clearTimeout);
+    timeouts.current = [];
+    audioManager.stopMusic();
+    setHighlightLevel(totalLevels);
+    setPausedSafeHavens(new Set(ladder.filter((s) => s.safe).map((s) => s.level)));
+    setVisibleLifelines(LIFELINES.length);
+    setAnimationComplete(true);
+  }, [ladder, totalLevels]);
+
+  // Two skip segments on this screen: (1) the running animation,
+  // (2) once finished, the "click to start" wait
+  useEffect(() => {
+    return setSkipHandler(animationComplete ? onContinue : fastForward);
+  }, [animationComplete, fastForward, onContinue]);
 
   // Row height shrinks when the set is long so the ladder always fits
   const rowHeight = Math.min(48, Math.floor(560 / Math.max(totalLevels, 1)));
