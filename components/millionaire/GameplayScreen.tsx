@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { AnswerBox } from "./AnswerBox";
 import { LifelinesBar } from "./LifelinesBar";
-import { SafeHavenFrame } from "./SafeHavenFrame";
+import { SafeHavenFrame } from "./SafeHavenFrame";`nimport { SafeHavenMoneyLadder } from "./SafeHavenMoneyLadder";
 import { CountdownTimer } from "./CountdownTimer";
 import { Question, formatMoney } from "@/lib/millionaire/questions";
 import { PrizeStep } from "@/lib/millionaire/prize";
