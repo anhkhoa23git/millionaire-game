@@ -46,7 +46,7 @@ export function ContestantIntroScreen({ onContinue, showLogo = true }: Contestan
               animation: "fade-in-glow 1s ease-out",
             }}
           >
-            LET'S MEET TODAY'S CONTESTANT
+            LET&apos;S MEET TODAY&apos;S CONTESTANT
           </h2>
         </Khung1Frame>
       </div>

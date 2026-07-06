@@ -51,7 +51,7 @@ function WalkAwayScreen({ amount, onContinue }: { amount: number; onContinue: ()
         className="text-white text-center mb-4"
         style={{
           fontFamily: "Arial, sans-serif",
-          fontSize: "32px",
+          fontSize: "clamp(18px, 2.8cqw, 32px)",
           letterSpacing: "0.1em",
         }}
       >
@@ -62,7 +62,7 @@ function WalkAwayScreen({ amount, onContinue }: { amount: number; onContinue: ()
         className="text-[#FFD700] font-black"
         style={{
           fontFamily: "Arial, sans-serif",
-          fontSize: "120px",
+          fontSize: "clamp(48px, 10cqw, 120px)",
           textShadow: "0 0 40px rgba(255,215,0,0.6), 0 8px 16px rgba(0,0,0,0.8)",
           animation: "fade-in-up 1s ease-out",
         }}
@@ -95,13 +95,13 @@ function WinScreen({ amount, onContinue }: { amount: number; onContinue: () => v
       {/* Light rays */}
       <div className="win-light-rays absolute inset-0 pointer-events-none" />
 
-      <img src="/icons/Main Logo Cropped.png" alt="Who Wants to Be a Millionaire" style={{ width: "280px", height: "auto", filter: "drop-shadow(0 0 30px rgba(212,175,55,0.6))" }} />
+      <img src="/icons/Main Logo Cropped.png" alt="Who Wants to Be a Millionaire" style={{ width: "clamp(140px, 22cqw, 280px)", height: "auto", filter: "drop-shadow(0 0 30px rgba(212,175,55,0.6))" }} />
 
       <h1
         className="text-white mt-12 mb-4"
         style={{
           fontFamily: "Arial, sans-serif",
-          fontSize: "60px",
+          fontSize: "clamp(26px, 5cqw, 60px)",
           fontWeight: "bold",
           letterSpacing: "0.05em",
           textShadow: "0 0 30px rgba(255,215,0,0.6)",
@@ -115,7 +115,7 @@ function WinScreen({ amount, onContinue }: { amount: number; onContinue: () => v
         className="text-[#FFD700] font-black"
         style={{
           fontFamily: "Arial, sans-serif",
-          fontSize: "160px",
+          fontSize: "clamp(56px, 13cqw, 160px)",
           textShadow: "0 0 60px rgba(255,215,0,0.8), 0 8px 24px rgba(0,0,0,0.9)",
           animation: "fade-in-up 2s ease-out",
         }}
@@ -151,7 +151,7 @@ function LoseScreen({ amount, onContinue }: { amount: number; onContinue: () => 
         className="text-[#D0021B] mb-8"
         style={{
           fontFamily: "Arial, sans-serif",
-          fontSize: "80px",
+          fontSize: "clamp(36px, 6.5cqw, 80px)",
           fontWeight: "bold",
           letterSpacing: "0.1em",
           textShadow: "0 0 30px rgba(208,2,27,0.6)",
@@ -176,7 +176,7 @@ function LoseScreen({ amount, onContinue }: { amount: number; onContinue: () => 
         className="text-[#FFD700] font-black mb-12"
         style={{
           fontFamily: "Arial, sans-serif",
-          fontSize: "100px",
+          fontSize: "clamp(44px, 8.5cqw, 100px)",
           textShadow: "0 0 30px rgba(255,215,0,0.4)",
           animation: "fade-in-up 1.5s ease-out",
         }}

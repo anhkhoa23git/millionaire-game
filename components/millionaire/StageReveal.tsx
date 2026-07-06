@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { MoneyLadder } from "./MoneyLadder";
 import { LifelinesBar } from "./LifelinesBar";
 import { ContestantInfo } from "@/lib/millionaire/state";
+import { buildPrizeLadder } from "@/lib/millionaire/prize";
 
 interface StageRevealProps {
   contestant: ContestantInfo;
@@ -122,7 +123,7 @@ export function StageReveal({ contestant, onContinue }: StageRevealProps) {
           >
             PRIZE LADDER
           </div>
-          <MoneyLadder currentLevel={1} finalLevel={1} />
+          <MoneyLadder ladder={buildPrizeLadder(9)} currentLevel={1} finalLevel={1} />
         </div>
       )}
 
