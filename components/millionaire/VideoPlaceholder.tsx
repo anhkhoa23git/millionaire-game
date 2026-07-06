@@ -131,7 +131,7 @@ export function VideoPlaceholder({
               className="text-white font-black"
               style={{
                 fontFamily: "Arial, sans-serif",
-                fontSize: "60px",
+                fontSize: "clamp(26px, 5cqw, 60px)",
                 textShadow: "0 0 30px rgba(212,175,55,0.6)",
                 letterSpacing: "0.02em",
               }}
@@ -143,7 +143,7 @@ export function VideoPlaceholder({
             <div
               className="mx-auto mt-12 overflow-hidden rounded-full"
               style={{
-                width: "480px",
+                width: "min(70cqw, 480px)",
                 height: "6px",
                 background: "rgba(255,255,255,0.1)",
               }}

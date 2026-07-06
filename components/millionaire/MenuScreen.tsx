@@ -1,19 +1,17 @@
 "use client";
 
-import { MillionaireLogo } from "./MillionaireLogo";
-
 interface MenuScreenProps {
   onPlay: () => void;
+  onCustomize: () => void;
+  onHistory: () => void;
   onSettings: () => void;
   onReset: () => void;
   onExit: () => void;
 }
 
-export function MenuScreen({ onPlay, onSettings, onReset, onExit }: MenuScreenProps) {
+export function MenuScreen({ onPlay, onCustomize, onHistory, onSettings, onReset, onExit }: MenuScreenProps) {
   return (
-    <div
-      className="menu-screen relative w-full h-full overflow-hidden flex flex-col items-center justify-center"
-    >
+    <div className="menu-screen relative w-full h-full overflow-hidden flex flex-col">
       {/* Background Image */}
       <div
         className="absolute inset-0"
@@ -39,44 +37,43 @@ export function MenuScreen({ onPlay, onSettings, onReset, onExit }: MenuScreenPr
       {/* Particles */}
       <div className="menu-particles absolute inset-0 pointer-events-none" />
 
-      {/* Logo top-right */}
-      <div className="absolute top-8 right-8">
+      {/* Header row: MENU title + logo */}
+      <div
+        className="relative z-10 flex items-center justify-between"
+        style={{ padding: "clamp(16px, 3cqh, 32px) clamp(16px, 3cqw, 40px) 0" }}
+      >
+        <h1
+          className="text-white tracking-[0.3em] font-black"
+          style={{
+            fontSize: "clamp(32px, 6.5cqw, 80px)",
+            textShadow: "0 0 24px rgba(212,175,55,0.5), 0 4px 8px rgba(0,0,0,0.8)",
+          }}
+        >
+          MENU
+        </h1>
         <img
           src="/icons/Main Logo Cropped.png"
           alt="Who Wants to Be a Millionaire"
           style={{
-            width: "220px",
+            width: "clamp(100px, 17cqw, 220px)",
             height: "auto",
             filter: "drop-shadow(0 0 20px rgba(212,175,55,0.5))",
           }}
         />
       </div>
 
-      {/* MENU header */}
-      <h1
-        className="absolute text-white tracking-[0.3em] font-black"
+      {/* Buttons stack — vertically centered, scrolls if it ever overflows */}
+      <div
+        className="relative z-10 flex-1 flex flex-col justify-center overflow-y-auto"
         style={{
-          top: "80px",
-          left: "50%",
-          transform: "translateX(-50%)",
-          fontFamily: "Arial, sans-serif",
-          fontSize: "80px",
-          textShadow: "0 0 24px rgba(212,175,55,0.5), 0 4px 8px rgba(0,0,0,0.8)",
-        }}
-      >
-        MENU
-      </h1>
-
-      {/* Buttons stack — center-left */}
-      <div 
-        className="absolute flex flex-col gap-5 z-10"
-        style={{
-          left: "25%",
-          top: "50%",
-          transform: "translate(-50%, -50%)",
+          gap: "clamp(8px, 1.8cqh, 20px)",
+          padding: "clamp(12px, 2cqh, 24px) clamp(16px, 6cqw, 80px)",
+          maxWidth: "min(92cqw, 560px)",
         }}
       >
         <MenuButton label="Play" primary onClick={onPlay} />
+        <MenuButton label="Customize questions" onClick={onCustomize} />
+        <MenuButton label="History" onClick={onHistory} />
         <MenuButton label="Settings" onClick={onSettings} />
         <MenuButton label="Reset game" onClick={onReset} />
       </div>
@@ -85,8 +82,14 @@ export function MenuScreen({ onPlay, onSettings, onReset, onExit }: MenuScreenPr
       <button
         type="button"
         onClick={onExit}
-        className="absolute bottom-8 right-8 text-white text-[20px] tracking-[0.2em] hover:text-[#D4AF37] transition-colors"
-        style={{ fontFamily: "Arial, sans-serif" }}
+        className="absolute z-10 text-white tracking-[0.2em] hover:text-[#D4AF37] transition-colors"
+        style={{
+          bottom: "clamp(12px, 3cqh, 32px)",
+          right: "clamp(12px, 3cqw, 32px)",
+          fontSize: "clamp(15px, 1.7cqw, 20px)",
+          minHeight: "44px",
+          padding: "0 12px",
+        }}
       >
         EXIT
       </button>
@@ -116,17 +119,16 @@ function MenuButton({
     <button
       type="button"
       onClick={onClick}
-      className="menu-btn group relative overflow-hidden text-left transition-all duration-200 hover:scale-[1.02]"
+      className="menu-btn group relative overflow-hidden text-left transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
       style={{
-        width: "440px",
-        height: "64px",
-        background: primary ? "#0A1A3A" : "#0A1A3A",
-        border: `2px solid ${primary ? "#D4AF37" : "#D4AF37"}`,
+        width: "100%",
+        minHeight: "clamp(48px, 8cqh, 64px)",
+        background: "#0A1A3A",
+        border: "2px solid #D4AF37",
         borderRadius: "8px",
-        padding: "0 28px",
+        padding: "0 clamp(14px, 2.2cqw, 28px)",
         color: "#FFFFFF",
-        fontFamily: "Arial, sans-serif",
-        fontSize: "24px",
+        fontSize: "clamp(16px, 2cqw, 24px)",
         fontWeight: "500",
         letterSpacing: "0.05em",
         boxShadow: primary
@@ -135,7 +137,7 @@ function MenuButton({
       }}
     >
       <span className="relative z-10 flex items-center gap-3">
-        <span style={{ color: "#D4AF37", fontSize: "18px" }}>▸</span>
+        <span style={{ color: "#D4AF37", fontSize: "0.75em" }}>▸</span>
         {label}
       </span>
       <span

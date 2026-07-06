@@ -60,7 +60,7 @@ export function WelcomeScreen({ onContinue, showLogo = true }: WelcomeScreenProp
             <h1
               className="text-[#FFE7A0] font-bold tracking-[0.15em] relative z-10 whitespace-nowrap"
               style={{
-                fontSize: "64px",
+                fontSize: "clamp(28px, 5cqw, 64px)",
                 fontFamily: "Arial, sans-serif",
                 textShadow: "0 2px 8px rgba(0,0,0,0.8), 0 0 20px rgba(255,231,160,0.4)",
                 animation: phase === "welcome" ? "fade-in-glow 1s ease-out" : "fade-out 0.5s ease-out",

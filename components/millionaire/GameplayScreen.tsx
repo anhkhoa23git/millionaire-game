@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { AnswerBox } from "./AnswerBox";
 import { LifelinesBar } from "./LifelinesBar";
-import { MillionaireLogo } from "./MillionaireLogo";
 import { SafeHavenFrame } from "./SafeHavenFrame";
-import { QUESTIONS, formatMoney, SAFE_HAVENS } from "@/lib/millionaire/questions";
+import { CountdownTimer } from "./CountdownTimer";
+import { Question, formatMoney } from "@/lib/millionaire/questions";
+import { PrizeStep } from "@/lib/millionaire/prize";
+import { GameSettings, timeLimitForLevel } from "@/lib/millionaire/settings";
+import { audioManager } from "@/lib/millionaire/audio";
 import {
   LifelineId,
   simulateAudiencePoll,
@@ -13,11 +16,15 @@ import {
 import { AnswerState } from "@/lib/millionaire/state";
 
 interface GameplayScreenProps {
+  questions: Question[];
+  ladder: PrizeStep[];
+  settings: GameSettings;
   currentLevel: number;
   usedLifelines: Set<LifelineId>;
   onUseLifeline: (id: LifelineId) => void;
   onCorrect: (newLevel: number) => void;
   onWrong: () => void;
+  onTimeout: () => void;
   onWalkAway: () => void;
   // 50:50 state
   disabledAnswers: Set<number>;
@@ -38,11 +45,15 @@ type RevealState =
 
 export function GameplayScreen(props: GameplayScreenProps) {
   const {
+    questions,
+    ladder,
+    settings,
     currentLevel,
     usedLifelines,
     onUseLifeline,
     onCorrect,
     onWrong,
+    onTimeout,
     onWalkAway,
     disabledAnswers,
     setDisabledAnswers,
@@ -52,7 +63,10 @@ export function GameplayScreen(props: GameplayScreenProps) {
     setDoubleDipGuessesLeft,
   } = props;
 
-  const question = QUESTIONS[currentLevel - 1];
+  const question = questions[currentLevel - 1];
+  const step = ladder[currentLevel - 1];
+  const totalQuestions = questions.length;
+
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [revealState, setRevealState] = useState<RevealState>("idle");
   const [showFinalConfirm, setShowFinalConfirm] = useState(false);
@@ -61,11 +75,26 @@ export function GameplayScreen(props: GameplayScreenProps) {
   const [showSafeHavenFrame, setShowSafeHavenFrame] = useState(false);
   const [safeHavenAmount, setSafeHavenAmount] = useState(0);
   const [fadeOutContent, setFadeOutContent] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
+  const timeouts = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  const schedule = useCallback((fn: () => void, ms: number) => {
+    timeouts.current.push(setTimeout(fn, ms));
+  }, []);
+
+  useEffect(() => {
+    const pending = timeouts.current;
+    return () => {
+      pending.forEach(clearTimeout);
+      audioManager.stopSuspense();
+    };
+  }, []);
 
   const handleAnswerClick = useCallback(
     (idx: number) => {
       if (revealState !== "idle" && revealState !== "selected") return;
       if (disabledAnswers.has(idx)) return;
+      audioManager.sfx("answerSelect");
       setSelectedAnswer(idx);
       setRevealState("selected");
       setShowFinalConfirm(true);
@@ -77,36 +106,31 @@ export function GameplayScreen(props: GameplayScreenProps) {
     if (selectedAnswer === null) return;
     setShowFinalConfirm(false);
     setRevealState("revealing");
+    audioManager.sfx("finalAnswer");
+    audioManager.sfx("suspense");
 
-    // Drum roll pause 1.5s
-    setTimeout(() => {
+    // Suspense grows with the stakes: 1.5s early, up to 3s near the top
+    const progress = totalQuestions > 1 ? (currentLevel - 1) / (totalQuestions - 1) : 0;
+    const suspenseMs = 1500 + Math.round(progress * 1500);
+
+    schedule(() => {
+      audioManager.stopSuspense();
       const isCorrect = selectedAnswer === question.correct;
-      console.log("Answer check:", { isCorrect, currentLevel, questionSafe: question.safe });
       if (isCorrect) {
         setRevealState("correct");
-        
-        // Check if this is safe haven 1 (level 3)
-        const isSafeHaven1 = currentLevel === 3 && question.safe;
-        console.log("Safe haven 1 check:", { currentLevel, questionSafe: question.safe, isSafeHaven1 });
-        
-        if (isSafeHaven1) {
-          console.log("🎉 Safe haven 1 celebration triggered!");
-          // Safe haven 1: special celebration
-          setTimeout(() => {
-            // Play safe haven music
-            const audio = new Audio("/safe-haven-3.ogg");
-            audio.play().catch((e) => console.error("Audio play failed:", e));
-            
-            // Fade out content
+        audioManager.sfx("correct");
+
+        // Safe haven celebration (not on the final question — the win screen handles that)
+        const isSafeHavenStop = (step?.safe ?? false) && currentLevel < totalQuestions;
+
+        if (isSafeHavenStop) {
+          schedule(() => {
+            audioManager.music("safeHaven");
             setFadeOutContent(true);
-            
-            // Show frame after fade out
-            setTimeout(() => {
-              setSafeHavenAmount(question.amount);
+            schedule(() => {
+              setSafeHavenAmount(step.amount);
               setShowSafeHavenFrame(true);
-              
-              // Continue after 5 seconds
-              setTimeout(() => {
+              schedule(() => {
                 setShowSafeHavenFrame(false);
                 setFadeOutContent(false);
                 if (doubleDipActive) {
@@ -118,8 +142,7 @@ export function GameplayScreen(props: GameplayScreenProps) {
             }, 1000);
           }, 2500);
         } else {
-          // Normal correct answer
-          setTimeout(() => {
+          schedule(() => {
             if (doubleDipActive) {
               setDoubleDipActive(false);
               setDoubleDipGuessesLeft(0);
@@ -131,7 +154,8 @@ export function GameplayScreen(props: GameplayScreenProps) {
         // If double dip active and guesses left, just shake and reset
         if (doubleDipActive && doubleDipGuessesLeft > 1) {
           setRevealState("wrong");
-          setTimeout(() => {
+          audioManager.sfx("wrong");
+          schedule(() => {
             setRevealState("idle");
             setSelectedAnswer(null);
             setDisabledAnswers(new Set([...disabledAnswers, selectedAnswer]));
@@ -139,16 +163,19 @@ export function GameplayScreen(props: GameplayScreenProps) {
           }, 1500);
         } else {
           setRevealState("wrong");
-          setTimeout(() => {
+          audioManager.sfx("wrong");
+          schedule(() => {
             onWrong();
           }, 3000);
         }
       }
-    }, 1500);
+    }, suspenseMs);
   }, [
     selectedAnswer,
     question,
+    step,
     currentLevel,
+    totalQuestions,
     onCorrect,
     onWrong,
     doubleDipActive,
@@ -157,24 +184,38 @@ export function GameplayScreen(props: GameplayScreenProps) {
     setDisabledAnswers,
     setDoubleDipActive,
     setDoubleDipGuessesLeft,
+    schedule,
   ]);
 
   const handleCancelFinal = useCallback(() => {
+    audioManager.sfx("buttonClick");
     setShowFinalConfirm(false);
     setSelectedAnswer(null);
     setRevealState("idle");
   }, []);
 
+  const handleTimeUp = useCallback(() => {
+    if (revealState === "correct" || revealState === "wrong" || timedOut) return;
+    setTimedOut(true);
+    setShowFinalConfirm(false);
+    setRevealState("wrong");
+    audioManager.stopSuspense();
+    audioManager.sfx("wrong");
+    schedule(() => {
+      onTimeout();
+    }, 3000);
+  }, [revealState, timedOut, onTimeout, schedule]);
+
   const handleUseLifeline = useCallback(
     (id: LifelineId) => {
       if (usedLifelines.has(id)) return;
       if (revealState !== "idle") return;
+      audioManager.sfx("lifeline");
       onUseLifeline(id);
 
       if (id === "fifty") {
         // Disable 2 wrong answers (keep correct + 1 wrong)
         const wrongIndices = [0, 1, 2, 3].filter((i) => i !== question.correct);
-        // Pick 2 random wrong to disable
         const shuffled = wrongIndices.sort(() => Math.random() - 0.5);
         const toDisable = new Set([...disabledAnswers, shuffled[0], shuffled[1]]);
         setDisabledAnswers(toDisable);
@@ -199,6 +240,26 @@ export function GameplayScreen(props: GameplayScreenProps) {
     ]
   );
 
+  // Keyboard shortcuts: A-D select, Enter confirm, Escape cancel
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const key = e.key.toUpperCase();
+      if (showFinalConfirm) {
+        if (e.key === "Enter") handleFinalAnswer();
+        if (e.key === "Escape") handleCancelFinal();
+        return;
+      }
+      if (showAudienceModal && (e.key === "Enter" || e.key === "Escape")) {
+        setShowAudienceModal(false);
+        return;
+      }
+      const idx = ["A", "B", "C", "D"].indexOf(key);
+      if (idx >= 0) handleAnswerClick(idx);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showFinalConfirm, showAudienceModal, handleFinalAnswer, handleCancelFinal, handleAnswerClick]);
+
   // Guard: if question doesn't exist, show error
   if (!question) {
     return (
@@ -220,15 +281,35 @@ export function GameplayScreen(props: GameplayScreenProps) {
     return "default";
   };
 
+  const timerRunning =
+    settings.timerEnabled &&
+    revealState === "idle" &&
+    !showFinalConfirm &&
+    !showAudienceModal;
+
+  const isRevealing = revealState === "revealing";
+  const contentFade = {
+    opacity: fadeOutContent ? 0 : 1,
+    transition: "opacity 1s ease-out",
+  } as const;
+
   return (
     <div
-      className="gameplay-screen relative w-full h-full overflow-hidden"
-      style={{backgroundImage: "url('/gameplay-background.png')", backgroundSize: "cover", backgroundPosition: "center"}}
+      className={`gameplay-screen relative w-full h-full overflow-hidden flex flex-col ${
+        revealState === "wrong" ? "shake-screen" : ""
+      }`}
+      style={{
+        backgroundImage: "url('/gameplay-background.png')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        padding: "clamp(10px, 1.8cqw, 24px)",
+        gap: "clamp(6px, 1.2cqh, 16px)",
+      }}
     >
       {/* Dark overlay for better text readability */}
       <div
         className="absolute inset-0 pointer-events-none"
-        style={{background: "rgba(0, 0, 0, 0.3)"}}
+        style={{background: "rgba(0, 0, 0, 0.45)"}}
       />
       {/* Stage glow */}
       <div
@@ -239,108 +320,138 @@ export function GameplayScreen(props: GameplayScreenProps) {
         }}
       />
 
-      {/* Lifelines top-left */}
-      <div 
-        className="absolute top-6 left-6 z-20"
-        style={{
-          opacity: fadeOutContent ? 0 : 1,
-          transition: "opacity 1s ease-out",
-        }}
-      >
-        <LifelinesBar
-          usedLifelines={usedLifelines}
-          onUse={handleUseLifeline}
-          disabled={revealState !== "idle"}
+      {/* Suspense dim while revealing */}
+      {isRevealing && (
+        <div
+          className="absolute inset-0 pointer-events-none z-[15]"
+          style={{ animation: "suspense-dim 1s ease-out forwards" }}
         />
-        {/* Double dip indicator */}
-        {doubleDipActive && (
+      )}
+
+      {/* Result flash */}
+      {(revealState === "correct" || revealState === "wrong") && (
+        <div
+          className="absolute inset-0 pointer-events-none z-[15]"
+          style={{
+            animation: `${revealState === "correct" ? "flash-green" : "flash-red"} 1.2s ease-out forwards`,
+          }}
+        />
+      )}
+
+      {/* ===== Header: lifelines | level + walk away | logo + timer ===== */}
+      <header
+        className="relative z-20 flex items-start justify-between flex-wrap"
+        style={{ gap: "clamp(6px, 1.5cqw, 16px)", ...contentFade }}
+      >
+        <div className="flex flex-col" style={{ gap: "6px" }}>
+          <LifelinesBar
+            usedLifelines={usedLifelines}
+            onUse={handleUseLifeline}
+            disabled={revealState !== "idle"}
+          />
+          {doubleDipActive && (
+            <div
+              className="px-3 py-1 tracking-widest text-center"
+              style={{
+                fontSize: "clamp(10px, 1cqw, 12px)",
+                background: "rgba(212,175,55,0.2)",
+                border: "1px solid var(--gold)",
+                color: "var(--gold)",
+                borderRadius: "4px",
+              }}
+            >
+              DOUBLE DIP · {doubleDipGuessesLeft} GUESS LEFT
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col items-center" style={{ gap: "6px" }}>
           <div
-            className="mt-2 px-3 py-1 text-[12px] tracking-widest text-center"
+            className="tracking-widest text-center"
             style={{
-              background: "rgba(212,175,55,0.2)",
-              border: "1px solid #D4AF37",
-              color: "#D4AF37",
-              borderRadius: "4px",
-              fontFamily: "Arial, sans-serif",
+              color: "var(--gold)",
+              fontSize: "clamp(11px, 1.3cqw, 14px)",
+              fontWeight: 700,
+              textShadow: "0 2px 6px rgba(0,0,0,0.8)",
             }}
           >
-            DOUBLE DIP · {doubleDipGuessesLeft} GUESS LEFT
+            QUESTION {currentLevel} / {totalQuestions} — {formatMoney(step?.amount ?? 0)}
           </div>
-        )}
-      </div>
+          <button
+            type="button"
+            onClick={() => {
+              audioManager.sfx("buttonClick");
+              onWalkAway();
+            }}
+            disabled={revealState !== "idle" || currentLevel === 1}
+            className="walk-away-btn tracking-widest transition-all"
+            style={{
+              fontSize: "clamp(10px, 1.1cqw, 12px)",
+              padding: "0.6em 1.2em",
+              minHeight: "38px",
+              background: "rgba(255,255,153,0.15)",
+              border: "1px solid #FFFF99",
+              color: "#FFFF99",
+              borderRadius: "4px",
+              cursor: revealState !== "idle" || currentLevel === 1 ? "not-allowed" : "pointer",
+              opacity: currentLevel === 1 ? 0.3 : 1,
+            }}
+          >
+            WALK AWAY WITH {formatMoney(ladder[currentLevel - 2]?.amount || 0)}
+          </button>
+        </div>
 
-      {/* Logo top-right */}
-      <div 
-        className="absolute top-6 right-6 z-20"
-        style={{
-          opacity: fadeOutContent ? 0 : 1,
-          transition: "opacity 1s ease-out",
-        }}
-      >
-        <img
-          src="/icons/Main Logo Cropped.png"
-          alt="Who Wants to Be a Millionaire"
-          style={{
-            width: "140px",
-            height: "auto",
-            filter: "drop-shadow(0 0 20px rgba(212,175,55,0.5))",
-          }}
-        />
-      </div>
+        <div className="flex items-start" style={{ gap: "clamp(8px, 1.5cqw, 16px)" }}>
+          {settings.timerEnabled && (
+            <CountdownTimer
+              totalSeconds={timeLimitForLevel(currentLevel, totalQuestions, settings)}
+              running={timerRunning}
+              onTimeout={handleTimeUp}
+            />
+          )}
+          <img
+            className="gp-logo"
+            src="/icons/Main Logo Cropped.png"
+            alt="Who Wants to Be a Millionaire"
+            style={{
+              width: "clamp(80px, 11cqw, 140px)",
+              height: "auto",
+              filter: "drop-shadow(0 0 20px rgba(212,175,55,0.5))",
+            }}
+          />
+        </div>
+      </header>
 
-      {/* Walk Away button — top center, small */}
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20">
-        <button
-          type="button"
-          onClick={onWalkAway}
-          disabled={revealState !== "idle" || currentLevel === 1}
-          className="walk-away-btn px-4 py-2 text-[12px] tracking-widest transition-all"
-          style={{
-            background: "rgba(255,255,153,0.15)",
-            border: "1px solid #FFFF99",
-            color: "#FFFF99",
-            borderRadius: "4px",
-            fontFamily: "Arial, sans-serif",
-            cursor: revealState !== "idle" || currentLevel === 1 ? "not-allowed" : "pointer",
-            opacity: currentLevel === 1 ? 0.3 : 1,
-          }}
-        >
-          WALK AWAY WITH {formatMoney(QUESTIONS[currentLevel - 2]?.amount || 0)}
-        </button>
-      </div>
-
-      {/* Question banner */}
+      {/* ===== Question banner (fills the middle) ===== */}
       <div
-        className="absolute z-10"
+        className="relative z-10 flex-1 flex items-center justify-center min-h-0"
         style={{
-          top: "140px",
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: "1180px",
-          opacity: fadeOutContent ? 0 : 1,
-          transition: "opacity 1s ease-out",
+          ...contentFade,
+          opacity: fadeOutContent ? 0 : isRevealing ? 0.5 : 1,
         }}
       >
         <div
-          className="question-banner relative rounded-xl px-10 py-8"
+          className="question-banner rounded-xl flex items-center justify-center"
           style={{
-            background: "linear-gradient(135deg, #16111A 0%, #1A1654 100%)",
-            border: "2px solid #D4AF37",
+            width: "min(96cqw, 1180px)",
+            minHeight: "clamp(80px, 20cqh, 160px)",
+            padding: "clamp(14px, 2.5cqw, 40px)",
+            background: "linear-gradient(135deg, #0D0A10 0%, #131044 100%)",
+            border: "2px solid var(--gold)",
             boxShadow: "0 8px 32px rgba(0,0,0,0.6), 0 0 16px rgba(212,175,55,0.15) inset",
-            minHeight: "160px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
           }}
         >
           <p
             className="text-white text-center"
             style={{
-              fontFamily: "Arial, sans-serif",
-              fontSize: "34px",
-              fontWeight: "500",
-              lineHeight: 1.3,
-              textShadow: "0 2px 8px rgba(0,0,0,0.8)",
+              fontSize:
+                question.question.length > 180
+                  ? "clamp(14px, 2cqw, 26px)"
+                  : question.question.length > 110
+                  ? "clamp(15px, 2.3cqw, 30px)"
+                  : "clamp(16px, 2.7cqw, 34px)",
+              fontWeight: 500,
+              lineHeight: 1.4,
             }}
           >
             {question.question}
@@ -348,79 +459,62 @@ export function GameplayScreen(props: GameplayScreenProps) {
         </div>
       </div>
 
-      {/* Answer grid 2x2 */}
-      <div
-        className="absolute z-10 grid grid-cols-2 gap-5"
-        style={{
-          bottom: "60px",
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: "1180px",
-          opacity: fadeOutContent ? 0 : 1,
-          transition: "opacity 1s ease-out",
-        }}
-      >
+      {/* ===== Answer grid ===== */}
+      <div className="answer-grid relative z-20" style={contentFade}>
         {question.answers.map((ans, idx) => (
-          <AnswerBox
+          <div
             key={idx}
-            letter={["A", "B", "C", "D"][idx] as "A" | "B" | "C" | "D"}
-            text={ans}
-            state={getAnswerState(idx)}
-            index={idx}
-            onClick={() => handleAnswerClick(idx)}
-          />
+            style={{
+              // Spotlight: while revealing, dim every answer except the chosen one
+              opacity: isRevealing && idx !== selectedAnswer ? 0.25 : 1,
+              transition: "opacity 0.6s ease-out",
+            }}
+          >
+            <AnswerBox
+              letter={["A", "B", "C", "D"][idx] as "A" | "B" | "C" | "D"}
+              text={ans}
+              state={getAnswerState(idx)}
+              index={idx}
+              onClick={() => handleAnswerClick(idx)}
+            />
+          </div>
         ))}
+      </div>
+
+      {/* Keyboard hint (hidden on touch-first narrow stages via CSS) */}
+      <div
+        className="gp-logo relative z-10 text-center text-white/30 tracking-widest"
+        style={{ fontSize: "clamp(9px, 1cqw, 12px)" }}
+      >
+        PRESS A · B · C · D TO ANSWER
       </div>
 
       {/* Final answer confirm modal */}
       {showFinalConfirm && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.6)" }}>
-          <div
-            className="text-center p-10 rounded-xl"
-            style={{
-              background: "linear-gradient(135deg, #16111A 0%, #1A1654 100%)",
-              border: "2px solid #D4AF37",
-              boxShadow: "0 0 48px rgba(212,175,55,0.4)",
-            }}
-          >
+        <div className="modal-overlay">
+          <div className="modal-box game-panel text-center">
             <h3
               className="text-white mb-2"
-              style={{
-                fontFamily: "Arial, sans-serif",
-                fontSize: "32px",
-                fontWeight: "bold",
-              }}
+              style={{ fontSize: "clamp(20px, 2.8cqw, 32px)", fontWeight: "bold" }}
             >
               Is that your final answer?
             </h3>
             <p
-              className="text-[#D4AF37] mb-8"
-              style={{ fontFamily: "Arial, sans-serif", fontSize: "18px", letterSpacing: "0.1em" }}
+              className="mb-8"
+              style={{
+                color: "var(--gold)",
+                fontSize: "clamp(14px, 1.6cqw, 18px)",
+                letterSpacing: "0.1em",
+              }}
             >
               You selected: {["A", "B", "C", "D"][selectedAnswer!]} — {question.answers[selectedAnswer!]}
             </p>
-            <div className="flex gap-4 justify-center">
-              <button
-                type="button"
-                onClick={handleCancelFinal}
-                className="px-8 py-3 text-white border-2 border-white/40 hover:border-white rounded-lg transition-colors"
-                style={{ fontFamily: "Arial, sans-serif", fontSize: "18px" }}
-              >
-                No, change
+            <div className="flex gap-4 justify-center flex-wrap">
+              <button type="button" onClick={handleCancelFinal} className="btn-ghost">
+                No, change (Esc)
               </button>
-              <button
-                type="button"
-                onClick={handleFinalAnswer}
-                className="px-8 py-3 rounded-lg font-bold transition-transform hover:scale-105"
-                style={{
-                  background: "#D4AF37",
-                  border: "2px solid #FFA500",
-                  color: "#000000",
-                  fontFamily: "Arial, sans-serif",
-                  fontSize: "18px",
-                }}
-              >
-                Yes, final answer
+              <button type="button" onClick={handleFinalAnswer} className="btn-gold">
+                Yes, final answer (Enter)
               </button>
             </div>
           </div>
@@ -429,37 +523,34 @@ export function GameplayScreen(props: GameplayScreenProps) {
 
       {/* Audience poll modal */}
       {showAudienceModal && audiencePoll && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.7)" }}>
-          <div
-            className="p-10 rounded-xl"
-            style={{
-              background: "linear-gradient(135deg, #16111A 0%, #1A1654 100%)",
-              border: "2px solid #D4AF37",
-              width: "640px",
-            }}
-          >
+        <div className="modal-overlay">
+          <div className="modal-box game-panel">
             <h3
               className="text-white text-center mb-8"
-              style={{ fontFamily: "Arial, sans-serif", fontSize: "28px", fontWeight: "bold" }}
+              style={{ fontSize: "clamp(18px, 2.4cqw, 28px)", fontWeight: "bold" }}
             >
               Ask the Audience
             </h3>
-            <div className="flex items-end justify-around gap-4" style={{ height: "240px" }}>
+            <div
+              className="flex items-end justify-around gap-2"
+              style={{ height: "clamp(140px, 32cqh, 240px)" }}
+            >
               {audiencePoll.map((pct, idx) => (
-                <div key={idx} className="flex flex-col items-center gap-2" style={{ width: "100px" }}>
-                  <span className="text-white text-[24px] font-bold" style={{ fontFamily: "Arial, sans-serif" }}>
+                <div key={idx} className="flex flex-col items-center gap-2 flex-1" style={{ maxWidth: "100px" }}>
+                  <span className="text-white font-bold" style={{ fontSize: "clamp(14px, 2cqw, 24px)" }}>
                     {pct}%
                   </span>
                   <div
                     style={{
-                      width: "60px",
-                      height: `${pct * 1.8}px`,
-                      background: idx === question.correct ? "#4FAE1A" : "#081D5E",
+                      width: "min(60px, 70%)",
+                      height: `${pct}%`,
+                      minHeight: "4px",
+                      background: "#081D5E",
                       border: "2px solid #DFE8F2",
                       borderRadius: "4px 4px 0 0",
                     }}
                   />
-                  <span className="text-[#D4AF37] text-[20px] font-bold" style={{ fontFamily: "Arial, sans-serif" }}>
+                  <span className="font-bold" style={{ color: "var(--gold)", fontSize: "clamp(14px, 1.7cqw, 20px)" }}>
                     {["A", "B", "C", "D"][idx]}
                   </span>
                 </div>
@@ -467,15 +558,11 @@ export function GameplayScreen(props: GameplayScreenProps) {
             </div>
             <button
               type="button"
-              onClick={() => setShowAudienceModal(false)}
-              className="block mx-auto mt-8 px-8 py-3 rounded-lg font-bold"
-              style={{
-                background: "#D4AF37",
-                border: "2px solid #FFA500",
-                color: "#000000",
-                fontFamily: "Arial, sans-serif",
-                fontSize: "16px",
+              onClick={() => {
+                audioManager.sfx("buttonClick");
+                setShowAudienceModal(false);
               }}
+              className="btn-gold block mx-auto mt-8"
             >
               OK
             </button>
@@ -485,22 +572,28 @@ export function GameplayScreen(props: GameplayScreenProps) {
 
       {/* Reveal overlay text */}
       {(revealState === "correct" || revealState === "wrong") && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30">
+        <div
+          className="absolute left-1/2 -translate-x-1/2 z-30"
+          style={{ bottom: "clamp(8px, 2cqh, 24px)", maxWidth: "94cqw" }}
+        >
           <div
-            className="px-8 py-3 rounded-lg"
+            className="px-6 py-3 rounded-lg text-center"
             style={{
-              background: revealState === "correct" ? "#4FAE1A" : "#D0021B",
+              background: revealState === "correct" ? "var(--green)" : "var(--red)",
               color: "#FFFFFF",
-              fontFamily: "Arial, sans-serif",
-              fontSize: "20px",
+              fontSize: "clamp(13px, 1.7cqw, 20px)",
               fontWeight: "bold",
               letterSpacing: "0.1em",
               boxShadow: "0 0 24px " + (revealState === "correct" ? "rgba(79,174,26,0.6)" : "rgba(208,2,27,0.6)"),
             }}
           >
             {revealState === "correct"
-              ? `CORRECT! Moving to ${formatMoney(QUESTIONS[currentLevel]?.amount || 0)}`
-              :  `WRONG — The correct answer was ${["A", "B", "C", "D"][question.correct]}`}
+              ? currentLevel >= totalQuestions
+                ? "CORRECT!"
+                : `CORRECT! Moving to ${formatMoney(ladder[currentLevel]?.amount || 0)}`
+              : timedOut
+              ? `TIME'S UP — The correct answer was ${["A", "B", "C", "D"][question.correct]}`
+              : `WRONG — The correct answer was ${["A", "B", "C", "D"][question.correct]}`}
           </div>
         </div>
       )}
@@ -510,7 +603,3 @@ export function GameplayScreen(props: GameplayScreenProps) {
     </div>
   );
 }
-
-
-
-
