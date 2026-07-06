@@ -28,13 +28,14 @@ export function AnswerBox({ letter, text, state, onClick }: AnswerBoxProps) {
       type="button"
       disabled={!isInteractive}
       onClick={onClick}
-      className="answer-box group relative flex items-center gap-4 rounded-lg transition-all duration-200"
+      className="answer-box group relative flex items-center rounded-lg transition-all duration-200"
       style={{
         width: "100%",
-        height: "130px",
+        minHeight: "clamp(52px, 12cqh, 120px)",
+        gap: "clamp(8px, 1.2cqw, 16px)",
         background: s.bg,
         border: `2px solid ${s.border}`,
-        padding: "15px 25px",
+        padding: "clamp(8px, 1.2cqh, 15px) clamp(12px, 2cqw, 25px)",
         cursor: isInteractive ? "pointer" : "default",
         animation: s.animation,
         boxShadow: state === "correct"
@@ -46,11 +47,12 @@ export function AnswerBox({ letter, text, state, onClick }: AnswerBoxProps) {
     >
       {/* Letter */}
       <span
-        className="text-[36px] font-black flex-shrink-0"
+        className="font-black flex-shrink-0"
         style={{
           color: s.letterColor,
           fontFamily: "Arial, sans-serif",
-          minWidth: "40px",
+          fontSize: "clamp(18px, 2.8cqw, 36px)",
+          minWidth: "clamp(24px, 3cqw, 40px)",
           textAlign: "center",
         }}
       >
@@ -59,19 +61,22 @@ export function AnswerBox({ letter, text, state, onClick }: AnswerBoxProps) {
 
       {/* Separator dot */}
       <span
-        className="text-[24px] font-bold flex-shrink-0"
-        style={{ color: s.letterColor }}
+        className="font-bold flex-shrink-0"
+        style={{ color: s.letterColor, fontSize: "clamp(14px, 1.9cqw, 24px)" }}
       >
         :
       </span>
 
       {/* Answer text */}
       <span
-        className="text-[24px] font-medium flex-1 text-left"
+        className="font-medium flex-1 text-left"
         style={{
           color: s.textColor,
           fontFamily: "Arial, sans-serif",
-          lineHeight: 1.2,
+          fontSize: "clamp(14px, 1.9cqw, 24px)",
+          lineHeight: 1.3,
+          textDecoration: state === "disabled" ? "line-through" : "none",
+          opacity: state === "disabled" ? 0.6 : 1,
         }}
       >
         {text}

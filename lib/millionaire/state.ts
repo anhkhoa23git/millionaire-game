@@ -2,6 +2,8 @@
 
 export type ScreenId =
   | "menu"
+  | "customize"            // question editor
+  | "history"              // past game records
   | "intro_video"          // placeholder video screen
   | "welcome"
   | "contestant_intro"

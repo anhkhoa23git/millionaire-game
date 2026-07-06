@@ -121,6 +121,124 @@
 }
 
 /* ============================================================
+   Who Wants to Be a Millionaire? — Design System
+   ============================================================
+   All sizes inside the stage use container-query units (cqw/cqh
+   = % of stage width/height) wrapped in clamp(), so every screen
+   scales fluidly from phones to desktops without JS. */
+
+:root {
+  --gold: #D4AF37;
+  --gold-bright: #FFD700;
+  --orange: #FFA500;
+  --navy: #011D54;
+  --navy-hover: #0A3A8A;
+  --panel-from: #16111A;
+  --panel-to: #1A1654;
+  --green: #4FAE1A;
+  --red: #D0021B;
+  --font-game: Arial, Helvetica, sans-serif;
+}
+
+/* The 16:9 game stage. On portrait screens it fills the viewport
+   instead of letterboxing into a tiny strip. */
+.game-stage {
+  position: relative;
+  width: min(100vw, calc(100dvh * 16 / 9));
+  height: min(100dvh, calc(100vw * 9 / 16));
+  background: #000000;
+  overflow: hidden;
+  container-type: size;
+  container-name: stage;
+  font-family: var(--font-game);
+}
+
+@media (orientation: portrait) {
+  .game-stage {
+    width: 100vw;
+    height: 100dvh;
+  }
+}
+
+/* Shared panel look (modals, cards) */
+.game-panel {
+  background: linear-gradient(135deg, var(--panel-from) 0%, var(--panel-to) 100%);
+  border: 2px solid var(--gold);
+  border-radius: 12px;
+  box-shadow: 0 0 48px rgba(212, 175, 55, 0.3);
+}
+
+/* Primary gold button */
+.btn-gold {
+  background: var(--gold);
+  border: 2px solid var(--orange);
+  color: #000000;
+  font-family: var(--font-game);
+  font-weight: 700;
+  border-radius: 8px;
+  min-height: 44px;
+  padding: 0.6em 1.6em;
+  font-size: clamp(14px, 1.5cqw, 18px);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-gold:hover { transform: scale(1.04); }
+.btn-gold:active { transform: scale(0.97); }
+
+/* Secondary outline button */
+.btn-ghost {
+  background: transparent;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  color: #FFFFFF;
+  font-family: var(--font-game);
+  border-radius: 8px;
+  min-height: 44px;
+  padding: 0.6em 1.6em;
+  font-size: clamp(14px, 1.5cqw, 18px);
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.btn-ghost:hover { border-color: #FFFFFF; }
+.btn-ghost:active { transform: scale(0.97); }
+
+/* Modal overlay + sizing */
+.modal-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  padding: clamp(8px, 2cqw, 24px);
+}
+.modal-box {
+  width: min(92cqw, 640px);
+  max-height: 92cqh;
+  overflow-y: auto;
+  padding: clamp(16px, 3.5cqw, 40px);
+}
+
+/* Gameplay answer grid: 2 columns, collapses to 1 on narrow stages */
+.answer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(8px, 1.6cqw, 20px);
+  width: min(96cqw, 1180px);
+  margin: 0 auto;
+}
+
+@container stage (max-width: 700px) {
+  .answer-grid { grid-template-columns: 1fr; }
+  .gp-logo { display: none; }
+}
+
+@container stage (aspect-ratio < 1) {
+  .answer-grid { grid-template-columns: 1fr; }
+  .gp-logo { display: none; }
+}
+
+/* ============================================================
    Who Wants to Be a Millionaire? — Animations & Effects
    ============================================================ */
 
@@ -309,6 +427,49 @@
     opacity: 1;
     transform: translate(-50%, 0);
   }
+}
+
+/* Screen shake on wrong answer */
+@keyframes screen-shake {
+  0%, 100% { transform: translate(0, 0); }
+  10%, 50%, 90% { transform: translate(-8px, 2px); }
+  30%, 70% { transform: translate(8px, -2px); }
+}
+
+.shake-screen {
+  animation: screen-shake 0.5s ease-out;
+}
+
+/* Red flash overlay on wrong answer */
+@keyframes flash-red {
+  0% { background: rgba(208, 2, 27, 0.35); }
+  100% { background: rgba(208, 2, 27, 0); }
+}
+
+/* Green flash overlay on correct answer */
+@keyframes flash-green {
+  0% { background: rgba(79, 174, 26, 0.3); }
+  100% { background: rgba(79, 174, 26, 0); }
+}
+
+/* Suspense dim — darken everything except the selected answer */
+@keyframes suspense-dim {
+  from { background: rgba(0, 0, 0, 0); }
+  to { background: rgba(0, 0, 0, 0.55); }
+}
+
+/* Timer warning flash (last 10 seconds) */
+@keyframes timer-flash {
+  0%, 100% { color: #D0021B; transform: scale(1); }
+  50% { color: #FF6B6B; transform: scale(1.1); }
+}
+
+/* Answer hover lift */
+.answer-box:not(:disabled):hover {
+  border-color: #D4AF37 !important;
+  background: #0A3A8A !important;
+  transform: translateY(-2px);
+  box-shadow: 0 0 24px rgba(212, 175, 55, 0.45), 0 6px 16px rgba(0, 0, 0, 0.5) !important;
 }
 
 /* Disable text selection on game UI */

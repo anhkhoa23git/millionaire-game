@@ -77,7 +77,7 @@ export function WelcomeIntroScreen({ onContinue }: WelcomeIntroScreenProps) {
               animation: "fade-in-glow 1s ease-out",
             }}
           >
-            LET'S MEET TODAY'S CONTESTANT
+            LET&apos;S MEET TODAY&apos;S CONTESTANT
           </h1>
         )}
       </div>
