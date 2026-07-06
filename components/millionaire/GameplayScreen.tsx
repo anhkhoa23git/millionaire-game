@@ -76,6 +76,7 @@ export function GameplayScreen(props: GameplayScreenProps) {
   const [showSafeHavenFrame, setShowSafeHavenFrame] = useState(false);
   const [safeHavenAmount, setSafeHavenAmount] = useState(0);
   const [fadeOutContent, setFadeOutContent] = useState(false);
+  const [showSafeHavenMoneyLadder, setShowSafeHavenMoneyLadder] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
   const timeouts = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -126,19 +127,38 @@ export function GameplayScreen(props: GameplayScreenProps) {
 
         if (isSafeHavenStop) {
           schedule(() => {
-            audioManager.music("safeHaven");
+            // Special handling for level 3: play moc3 then mocintro
+            if (currentLevel === 3) {
+              const moc3Audio = new Audio("/moc3.mp3");
+              moc3Audio.play().catch((e) => console.error("moc3 play failed:", e));
+              moc3Audio.addEventListener('ended', () => {
+                const mocintroAudio = new Audio("/mocintro.mp3");
+                mocintroAudio.play().catch((e) => console.error("mocintro play failed:", e));
+              });
+            } else {
+              audioManager.music("safeHaven");
+            }
+            
             setFadeOutContent(true);
             schedule(() => {
               setSafeHavenAmount(step.amount);
               setShowSafeHavenFrame(true);
               schedule(() => {
                 setShowSafeHavenFrame(false);
-                setFadeOutContent(false);
-                if (doubleDipActive) {
-                  setDoubleDipActive(false);
-                  setDoubleDipGuessesLeft(0);
+                
+                // Special handling for level 3: show money ladder after 2s
+                if (currentLevel === 3) {
+                  schedule(() => {
+                    setShowSafeHavenMoneyLadder(true);
+                  }, 2000);
+                } else {
+                  setFadeOutContent(false);
+                  if (doubleDipActive) {
+                    setDoubleDipActive(false);
+                    setDoubleDipGuessesLeft(0);
+                  }
+                  onCorrect(currentLevel + 1);
                 }
-                onCorrect(currentLevel + 1);
               }, 5000);
             }, 1000);
           }, 2500);
@@ -206,6 +226,16 @@ export function GameplayScreen(props: GameplayScreenProps) {
       onTimeout();
     }, 3000);
   }, [revealState, timedOut, onTimeout, schedule]);
+
+  const handleMoneyLadderContinue = useCallback(() => {
+    setShowSafeHavenMoneyLadder(false);
+    setFadeOutContent(false);
+    if (doubleDipActive) {
+      setDoubleDipActive(false);
+      setDoubleDipGuessesLeft(0);
+    }
+    onCorrect(currentLevel + 1);
+  }, [doubleDipActive, currentLevel, onCorrect, setDoubleDipActive, setDoubleDipGuessesLeft]);
 
   const handleUseLifeline = useCallback(
     (id: LifelineId) => {
@@ -601,6 +631,13 @@ export function GameplayScreen(props: GameplayScreenProps) {
 
       {/* Safe Haven Frame */}
       <SafeHavenFrame amount={safeHavenAmount} visible={showSafeHavenFrame} />
+      
+      {/* Safe Haven Money Ladder (for level 3 only) */}
+      <SafeHavenMoneyLadder 
+        visible={showSafeHavenMoneyLadder} 
+        safeHavenLevel={3} 
+        onContinue={handleMoneyLadderContinue}
+      />
     </div>
   );
 }
