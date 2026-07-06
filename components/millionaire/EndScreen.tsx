@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import { formatMoney } from "@/lib/millionaire/questions";
+import { setSkipHandler } from "@/lib/millionaire/skip";
 
 interface EndScreenProps {
   variant: "walk_away" | "win" | "lose";
@@ -9,6 +11,9 @@ interface EndScreenProps {
 }
 
 export function EndScreen({ variant, amount, onContinue }: EndScreenProps) {
+  // Space/Skip = same as clicking anywhere to continue
+  useEffect(() => setSkipHandler(onContinue), [onContinue]);
+
   if (variant === "win") {
     return <WinScreen amount={amount} onContinue={onContinue} />;
   }

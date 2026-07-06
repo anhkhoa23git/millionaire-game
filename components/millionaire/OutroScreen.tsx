@@ -1,12 +1,15 @@
 "use client";
 
-
+import { useEffect } from "react";
+import { setSkipHandler } from "@/lib/millionaire/skip";
 
 interface OutroScreenProps {
   onContinue: () => void;
 }
 
 export function OutroScreen({ onContinue }: OutroScreenProps) {
+  // Space/Skip = same as clicking to continue
+  useEffect(() => setSkipHandler(onContinue), [onContinue]);
   return (
     <div
       className="outro-screen relative w-full h-full overflow-hidden flex flex-col items-center justify-center cursor-pointer"

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Khung1Frame } from "./Khung1Frame";
+import { setSkipHandler } from "@/lib/millionaire/skip";
 
 interface WelcomeScreenProps {
   onContinue: () => void;
@@ -33,6 +34,9 @@ export function WelcomeScreen({ onContinue, showLogo = true }: WelcomeScreenProp
       clearTimeout(timer3);
     };
   }, [onContinue]);
+
+  // Space/Skip ends this short text segment early
+  useEffect(() => setSkipHandler(onContinue), [onContinue]);
 
   return (
     <div
