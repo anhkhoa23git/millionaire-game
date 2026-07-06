@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { MenuScreen } from "@/components/millionaire/MenuScreen";
 import { WelcomeScreen } from "@/components/millionaire/WelcomeScreen";
 import { ContestantIntroScreen } from "@/components/millionaire/ContestantIntroScreen";
@@ -11,7 +11,15 @@ import { GameplayScreen } from "@/components/millionaire/GameplayScreen";
 import { EndScreen } from "@/components/millionaire/EndScreen";
 import { OutroScreen } from "@/components/millionaire/OutroScreen";
 import { ReturnButton } from "@/components/millionaire/ReturnButton";
-import { QUESTIONS, SAFE_HAVENS, formatMoney } from "@/lib/millionaire/questions";
+import { CustomizeScreen } from "@/components/millionaire/CustomizeScreen";
+import { HistoryScreen } from "@/components/millionaire/HistoryScreen";
+import { SettingsModal } from "@/components/millionaire/SettingsModal";
+import { Question } from "@/lib/millionaire/questions";
+import { loadQuestions } from "@/lib/millionaire/questionStore";
+import { buildPrizeLadder, computeWinnings, GameOutcome } from "@/lib/millionaire/prize";
+import { appendGameRecord } from "@/lib/millionaire/history";
+import { GameSettings, loadSettings, saveSettings } from "@/lib/millionaire/settings";
+import { audioManager } from "@/lib/millionaire/audio";
 import { ContestantInfo, ScreenId } from "@/lib/millionaire/state";
 import { LifelineId } from "@/lib/millionaire/lifelines";
 
@@ -31,22 +39,74 @@ export default function Home() {
   const [formFadeOut, setFormFadeOut] = useState(false);
   const [videoEnded, setVideoEnded] = useState(false);
   const [bannersSlideOut, setBannersSlideOut] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Questions + settings live in localStorage. Lazy initializers read it on the
+  // client; on the server the loaders fall back to defaults. The menu screen
+  // renders identically either way, so hydration stays consistent.
+  const [questions, setQuestions] = useState<Question[]>(() => loadQuestions());
+  const [settings, setSettings] = useState<GameSettings>(() => loadSettings());
+
+  useEffect(() => {
+    audioManager.setSfxVolume(settings.sfxVolume);
+    audioManager.setMusicVolume(settings.musicVolume);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const ladder = useMemo(() => buildPrizeLadder(questions.length), [questions]);
+
+  const recordGame = useCallback(
+    (correctCount: number, winnings: number, outcome: GameOutcome) => {
+      appendGameRecord({
+        date: new Date().toISOString(),
+        contestantName: contestant.name,
+        location: contestant.location,
+        correctCount,
+        totalQuestions: questions.length,
+        winnings,
+        outcome,
+        lifelinesUsed: [...usedLifelines],
+      });
+    },
+    [contestant, questions.length, usedLifelines]
+  );
 
   // ---------- State transitions ----------
   const handlePlay = useCallback(() => {
-    // Reset all state for new game
+    // Reset all state for new game; re-read questions so edits apply immediately
+    audioManager.sfx("buttonClick");
+    setQuestions(loadQuestions());
     setCurrentLevel(1);
     setFinalLevel(1);
     setUsedLifelines(new Set());
     setDisabledAnswers(new Set());
     setDoubleDipActive(false);
     setDoubleDipGuessesLeft(0);
-    setShowLogo(false); // Reset logo state
+    setShowLogo(false);
     setScreen("intro_video");
   }, []);
 
+  const handleCustomize = useCallback(() => {
+    audioManager.sfx("buttonClick");
+    setQuestions(loadQuestions());
+    setScreen("customize");
+  }, []);
+
+  const handleHistory = useCallback(() => {
+    audioManager.sfx("buttonClick");
+    setScreen("history");
+  }, []);
+
   const handleSettings = useCallback(() => {
-    alert("Settings coming soon!");
+    audioManager.sfx("buttonClick");
+    setShowSettings(true);
+  }, []);
+
+  const handleSaveSettings = useCallback((s: GameSettings) => {
+    setSettings(s);
+    saveSettings(s);
+    audioManager.setSfxVolume(s.sfxVolume);
+    audioManager.setMusicVolume(s.musicVolume);
   }, []);
 
   const handleReset = useCallback(() => {
@@ -89,9 +149,7 @@ export default function Home() {
 
   const handleFormSubmit = useCallback((name: string, location: string) => {
     setContestant({ name, location });
-    // Play contestant music
-    const audio = new Audio('/contestant.mp3');
-    audio.play().catch(err => console.warn('Audio play failed:', err));
+    audioManager.music("contestant");
     // Start form fade out
     setFormFadeOut(true);
     // Wait for form to fade out (0.5s), then reset and move logo to center
@@ -117,11 +175,8 @@ export default function Home() {
     setVideoEnded(true);
   }, []);
 
-  const handleTransitionBackgroundContinue = useCallback(() => {
-    setScreen("introduction");
-  }, []);
-
   const handleIntroductionContinue = useCallback(() => {
+    audioManager.stopMusic();
     setScreen("gameplay");
   }, []);
 
@@ -129,36 +184,50 @@ export default function Home() {
     setUsedLifelines((prev) => new Set([...prev, id]));
   }, []);
 
-  const handleCorrect = useCallback((newLevel: number) => {
-    // Reset per-question state
-    setDisabledAnswers(new Set());
+  const handleCorrect = useCallback(
+    (newLevel: number) => {
+      // Reset per-question state
+      setDisabledAnswers(new Set());
 
-    if (newLevel > 15) {
-      // Won the million!
-      setEndWinnings(1000000);
-      setFinalLevel(15);
-      setScreen("end_win");
-      return;
-    }
-    setCurrentLevel(newLevel);
-    setFinalLevel(newLevel);
-  }, []);
+      if (newLevel > questions.length) {
+        // Answered every question — champion!
+        const winnings = computeWinnings(questions.length, "win", ladder);
+        setEndWinnings(winnings);
+        setFinalLevel(questions.length);
+        recordGame(questions.length, winnings, "win");
+        setScreen("end_win");
+        return;
+      }
+      setCurrentLevel(newLevel);
+      setFinalLevel(newLevel);
+    },
+    [questions.length, ladder, recordGame]
+  );
 
-  const handleWrong = useCallback(() => {
-    // Walk away with last safe haven amount (or 0 if before first safe haven)
-    const lastSafe = currentLevel > 5 ? (currentLevel > 10 ? 32000 : 1000) : 0;
-    setEndWinnings(lastSafe);
-    setFinalLevel(currentLevel);
-    setScreen("end_lose");
-  }, [currentLevel]);
+  const endWithLoss = useCallback(
+    (outcome: "wrong" | "timeout") => {
+      const correctCount = currentLevel - 1;
+      const winnings = computeWinnings(correctCount, outcome, ladder);
+      setEndWinnings(winnings);
+      setFinalLevel(currentLevel);
+      recordGame(correctCount, winnings, outcome);
+      setScreen("end_lose");
+    },
+    [currentLevel, ladder, recordGame]
+  );
+
+  const handleWrong = useCallback(() => endWithLoss("wrong"), [endWithLoss]);
+  const handleTimeout = useCallback(() => endWithLoss("timeout"), [endWithLoss]);
 
   const handleWalkAway = useCallback(() => {
-    // Walk away with current level's amount (the level they ARE on, not yet answered)
-    const walkAmount = currentLevel > 1 ? QUESTIONS[currentLevel - 2].amount : 0;
-    setEndWinnings(walkAmount);
-    setFinalLevel(currentLevel - 1);
+    // Keep the amount of the last question answered correctly
+    const correctCount = currentLevel - 1;
+    const winnings = computeWinnings(correctCount, "walk_away", ladder);
+    setEndWinnings(winnings);
+    setFinalLevel(correctCount);
+    recordGame(correctCount, winnings, "walk_away");
     setScreen("end_walk_away");
-  }, [currentLevel]);
+  }, [currentLevel, ladder, recordGame]);
 
   const handleEndContinue = useCallback(() => {
     setScreen("outro");
@@ -172,6 +241,8 @@ export default function Home() {
     // Define navigation logic for return button
     const navigationMap: Record<ScreenId, ScreenId | null> = {
       "menu": null, // No return from menu
+      "customize": "menu",
+      "history": "menu",
       "intro_video": "menu",
       "welcome": "intro_video",
       "contestant_intro": "welcome",
@@ -180,14 +251,15 @@ export default function Home() {
       "transition_background": "transition_video",
       "introduction": "transition_video",
       "gameplay": "introduction",
-      "end_walk_away": "gameplay",
-      "end_win": "gameplay",
-      "end_lose": "gameplay",
+      "end_walk_away": "menu",
+      "end_win": "menu",
+      "end_lose": "menu",
       "outro": "menu",
     };
 
     const previousScreen = navigationMap[screen];
     if (previousScreen) {
+      audioManager.stopAll();
       setScreen(previousScreen);
     }
   }, [screen]);
@@ -197,15 +269,7 @@ export default function Home() {
 
   return (
     <main className="w-screen h-screen overflow-hidden bg-black flex items-center justify-center">
-      <div
-        className="relative shadow-2xl"
-        style={{
-          width: "min(100vw, calc(100vh * 16 / 9))",
-          height: "min(100vh, calc(100vw * 9 / 16))",
-          background: "#000000",
-          overflow: "hidden",
-        }}
-      >
+      <div className="game-stage shadow-2xl">
         {/* Persistent Logo - appears once and persists across welcome/intro/form */}
         {showLogo && showLogoInScreens && (
           <div
@@ -221,7 +285,7 @@ export default function Home() {
               src="/icons/Main Logo Cropped.png"
               alt="Who Wants to Be a Millionaire"
               style={{
-                width: "280px",
+                width: "clamp(140px, 24cqw, 280px)",
                 height: "auto",
                 filter: "drop-shadow(0 0 30px rgba(212,175,55,0.6))",
               }}
@@ -231,14 +295,37 @@ export default function Home() {
         {screen === "menu" && (
           <MenuScreen
             onPlay={handlePlay}
+            onCustomize={handleCustomize}
+            onHistory={handleHistory}
             onSettings={handleSettings}
             onReset={handleReset}
             onExit={handleExit}
           />
         )}
 
-        {/* Return Button - show on all screens except menu */}
-        {screen !== "menu" && <ReturnButton onReturn={handleReturn} />}
+        {screen === "customize" && (
+          <CustomizeScreen
+            questions={questions}
+            onQuestionsChange={setQuestions}
+            onBack={() => setScreen("menu")}
+          />
+        )}
+
+        {screen === "history" && <HistoryScreen onBack={() => setScreen("menu")} />}
+
+        {/* Settings modal — overlays the menu */}
+        {showSettings && (
+          <SettingsModal
+            settings={settings}
+            onSave={handleSaveSettings}
+            onClose={() => setShowSettings(false)}
+          />
+        )}
+
+        {/* Return Button - show on all screens except menu/customize/history (they have their own back buttons) */}
+        {screen !== "menu" && screen !== "customize" && screen !== "history" && (
+          <ReturnButton onReturn={handleReturn} />
+        )}
 
         {screen === "intro_video" && (
           <VideoPlaceholder
@@ -303,7 +390,7 @@ export default function Home() {
               <div className="upper-banner">
                 <span>Contestant</span>
               </div>
-              
+
               {/* Lower main banner */}
               <div className="lower-banner">
                 <div className="contestant-name">{contestant.name}</div>
@@ -314,17 +401,21 @@ export default function Home() {
         )}
 
         {screen === "introduction" && (
-          <IntroductionScreen contestant={contestant} onContinue={handleIntroductionContinue} />
+          <IntroductionScreen contestant={contestant} ladder={ladder} onContinue={handleIntroductionContinue} />
         )}
 
         {screen === "gameplay" && (
           <GameplayScreen
             key={currentLevel}
+            questions={questions}
+            ladder={ladder}
+            settings={settings}
             currentLevel={currentLevel}
             usedLifelines={usedLifelines}
             onUseLifeline={handleUseLifeline}
             onCorrect={handleCorrect}
             onWrong={handleWrong}
+            onTimeout={handleTimeout}
             onWalkAway={handleWalkAway}
             disabledAnswers={disabledAnswers}
             setDisabledAnswers={setDisabledAnswers}
@@ -379,8 +470,8 @@ export default function Home() {
         }
 
         .lower-third-container {
-          position: fixed;
-          bottom: 40px;
+          position: absolute;
+          bottom: clamp(16px, 5cqh, 40px);
           left: 50%;
           transform: translateX(-50%);
           z-index: 100;
@@ -393,18 +484,18 @@ export default function Home() {
 
         .upper-banner {
           position: absolute;
-          bottom: 85px;
+          bottom: clamp(60px, 11cqh, 85px);
           left: 50%;
           transform: translateX(-50%);
-          width: 280px;
-          height: 38px;
+          width: clamp(180px, 24cqw, 280px);
+          height: clamp(30px, 5cqh, 38px);
           background: linear-gradient(135deg, rgba(10, 25, 41, 0.95) 0%, rgba(15, 30, 50, 0.95) 100%);
           border: 2px solid #D4AF37;
           border-radius: 8px;
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 
+          box-shadow:
             0 0 20px rgba(212, 175, 55, 0.6),
             0 0 40px rgba(212, 175, 55, 0.3),
             0 4px 12px rgba(0, 0, 0, 0.6);
@@ -425,8 +516,8 @@ export default function Home() {
           bottom: 0;
           left: 50%;
           transform: translateX(-50%);
-          width: 520px;
-          height: 78px;
+          width: min(90cqw, 520px);
+          height: clamp(58px, 10cqh, 78px);
           background: linear-gradient(135deg, rgba(10, 25, 41, 0.95) 0%, rgba(15, 30, 50, 0.95) 100%);
           border: 3px solid #D4AF37;
           border-radius: 12px;
@@ -436,7 +527,7 @@ export default function Home() {
           justify-content: center;
           gap: 4px;
           padding: 12px 24px;
-          box-shadow: 
+          box-shadow:
             0 0 25px rgba(212, 175, 55, 0.7),
             0 0 50px rgba(212, 175, 55, 0.4),
             0 0 75px rgba(99, 102, 241, 0.2),
@@ -446,10 +537,10 @@ export default function Home() {
         .contestant-name {
           color: #D4AF37;
           font-family: Arial, sans-serif;
-          font-size: 32px;
+          font-size: clamp(20px, 3.2cqw, 32px);
           font-weight: 800;
           letter-spacing: 0.05em;
-          text-shadow: 
+          text-shadow:
             0 2px 4px rgba(0, 0, 0, 0.9),
             0 0 20px rgba(212, 175, 55, 0.4);
         }
@@ -457,7 +548,7 @@ export default function Home() {
         .contestant-location {
           color: #FFFFFF;
           font-family: Arial, sans-serif;
-          font-size: 18px;
+          font-size: clamp(13px, 1.8cqw, 18px);
           font-weight: 500;
           letter-spacing: 0.08em;
           text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);

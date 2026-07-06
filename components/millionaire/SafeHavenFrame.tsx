@@ -12,14 +12,14 @@ export function SafeHavenFrame({ amount, visible }: SafeHavenFrameProps) {
     <div
       className="safe-haven-frame"
       style={{
-        position: "fixed",
-        bottom: "30px",
+        position: "absolute",
+        bottom: "clamp(12px, 4cqh, 30px)",
         left: "50%",
         transform: "translateX(-50%)",
-        zIndex: 9999,
+        zIndex: 50,
         width: "90%",
         maxWidth: "1200px",
-        height: "100px",
+        height: "clamp(64px, 14cqh, 100px)",
         opacity: visible ? 1 : 0,
         transition: "opacity 1s ease-in-out",
         animation: visible ? "fadeInScale 1s ease-out" : "none",
@@ -62,7 +62,7 @@ export function SafeHavenFrame({ amount, visible }: SafeHavenFrameProps) {
         <p
           style={{
             fontFamily: "Arial, sans-serif",
-            fontSize: "48px",
+            fontSize: "clamp(24px, 4cqw, 48px)",
             fontWeight: "bold",
             color: "#FFED00",
             textShadow: "0 4px 12px rgba(0, 0, 0, 0.8), 0 0 20px rgba(255, 237, 0, 0.5)",

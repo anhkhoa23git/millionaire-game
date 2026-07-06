@@ -51,9 +51,9 @@ export function ContestantForm({ onSubmit, showLogo = true, logoMoveUp = false, 
         <div
           className="form-card relative z-10 flex flex-col gap-6"
           style={{
-            width: "640px",
-            padding: "48px 56px",
-            marginTop: "60px",
+            width: "min(92cqw, 640px)",
+            padding: "clamp(20px, 4cqw, 48px) clamp(20px, 4.5cqw, 56px)",
+            marginTop: "clamp(20px, 8cqh, 60px)",
             background: "rgba(10, 25, 41, 0.6)",
             border: "1px solid rgba(212,175,55,0.3)",
             borderRadius: "12px",
@@ -83,8 +83,8 @@ export function ContestantForm({ onSubmit, showLogo = true, logoMoveUp = false, 
               onClick={() => onSubmit(name.trim(), location.trim())}
               className="lets-play-btn mx-auto mt-4 transition-transform hover:scale-105"
               style={{
-                width: "220px",
-                height: "64px",
+                width: "clamp(160px, 30cqw, 220px)",
+                height: "clamp(48px, 8cqh, 64px)",
                 background: "#D4AF37",
                 border: "2px solid #FFA500",
                 borderRadius: "8px",
@@ -172,8 +172,8 @@ function Field({
         className="contestant-input"
         style={{
           width: "100%",
-          height: "56px",
-          padding: "0 20px",
+          height: "clamp(44px, 7cqh, 56px)",
+          padding: "0 clamp(12px, 1.6cqw, 20px)",
           background: "rgba(255,255,255,0.05)",
           border: "2px solid #D4AF37",
           borderRadius: "6px",

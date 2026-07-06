@@ -10,11 +10,11 @@ interface LifelinesBarProps {
 
 export function LifelinesBar({ usedLifelines, onUse, disabled = false }: LifelinesBarProps) {
   return (
-    <div className="lifelines-container flex gap-4">
+    <div className="lifelines-container flex" style={{ gap: "clamp(6px, 1cqw, 16px)" }}>
       {LIFELINES.map((lifeline) => {
         const isUsed = usedLifelines.has(lifeline.id);
         const isDisabled = disabled || isUsed;
-        
+
         return (
           <button
             key={lifeline.id}
@@ -23,8 +23,8 @@ export function LifelinesBar({ usedLifelines, onUse, disabled = false }: Lifelin
             disabled={isDisabled}
             className="lifeline-button relative"
             style={{
-              width: "110px",
-              height: "110px",
+              width: "clamp(52px, 8.5cqw, 110px)",
+              height: "clamp(52px, 8.5cqw, 110px)",
               borderRadius: "50%",
               background: isUsed ? "#3A3A3A" : "transparent",
               border: "none",
@@ -42,8 +42,8 @@ export function LifelinesBar({ usedLifelines, onUse, disabled = false }: Lifelin
               src={lifeline.icon}
               alt={lifeline.name}
               style={{
-                width: "110px",
-                height: "110px",
+                width: "100%",
+                height: "100%",
                 objectFit: "contain",
                 filter: isUsed ? "grayscale(100%)" : "none",
               }}
@@ -54,7 +54,7 @@ export function LifelinesBar({ usedLifelines, onUse, disabled = false }: Lifelin
               <div
                 className="absolute inset-0 flex items-center justify-center"
                 style={{
-                  fontSize: "72px",
+                  fontSize: "clamp(32px, 5.5cqw, 72px)",
                   color: "#D0021B",
                   fontWeight: "900",
                   textShadow: "0 2px 8px rgba(0,0,0,0.8)",
