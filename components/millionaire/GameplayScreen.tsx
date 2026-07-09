@@ -69,6 +69,8 @@ export function GameplayScreen(props: GameplayScreenProps) {
   const question = questions[currentLevel - 1];
   const step = ladder[currentLevel - 1];
   const totalQuestions = questions.length;
+  // First safe haven's level, for the bonus money-ladder screen's highlight
+  const firstSafeHavenLevel = ladder.find((s) => s.safe)?.level ?? 0;
 
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [revealState, setRevealState] = useState<RevealState>("idle");
@@ -119,6 +121,26 @@ export function GameplayScreen(props: GameplayScreenProps) {
     };
   }, []);
 
+  // Shared "finish" for a correct answer: close any bonus screens, clear
+  // Double Dip, and move on. GameplayScreen remounts on level change
+  // (key={currentLevel}) so all local reveal state resets on its own.
+  const advanceAfterCorrect = useCallback(() => {
+    setShowSafeHavenMoneyLadder(false);
+    setFadeOutContent(false);
+    if (doubleDipActive) {
+      setDoubleDipActive(false);
+      setDoubleDipGuessesLeft(0);
+    }
+    onCorrect(currentLevel + 1);
+  }, [doubleDipActive, currentLevel, onCorrect, setDoubleDipActive, setDoubleDipGuessesLeft]);
+
+  // The bonus money-ladder screen waits for a click ("CLICK TO CONTINUE") —
+  // register it as skippable too, consistent with every other click-through
+  // screen in the app.
+  useEffect(() => {
+    if (showSafeHavenMoneyLadder) return setSkipHandler(advanceAfterCorrect);
+  }, [showSafeHavenMoneyLadder, advanceAfterCorrect]);
+
   const handleAnswerClick = useCallback(
     (idx: number) => {
       if (revealState !== "idle" && revealState !== "selected") return;
@@ -149,58 +171,49 @@ export function GameplayScreen(props: GameplayScreenProps) {
         setRevealState("correct");
         audioManager.sfx("correct");
 
-        // Segment end state: advance to the next question. GameplayScreen
-        // remounts (key={level}) so local reveal state resets itself.
-        const finishCorrect = makeSkippable(() => {
-          if (doubleDipActive) {
-            setDoubleDipActive(false);
-            setDoubleDipGuessesLeft(0);
-          }
-          onCorrect(currentLevel + 1);
-        });
-
         // Safe haven celebration (not on the final question — the win screen handles that)
         const isSafeHavenStop = (step?.safe ?? false) && currentLevel < totalQuestions;
+        // The FIRST safe haven reached in this run gets an extra bonus screen
+        // (special audio + money-ladder highlight); later ones just show the
+        // amount frame. Derived from the dynamic ladder, not a hardcoded level,
+        // so it still lands correctly for custom question sets.
+        const isFirstSafeHaven =
+          isSafeHavenStop && ladder.find((s) => s.safe)?.level === currentLevel;
+
+        // Registered ONCE up front so the whole celebration (2500 + 1000 +
+        // 5000ms, whichever waits actually apply) is a single skippable
+        // segment — matches every other reveal step in this file.
+        const finishReveal = makeSkippable(() => {
+          if (isFirstSafeHaven) {
+            setShowSafeHavenFrame(false);
+            setShowSafeHavenMoneyLadder(true);
+          } else {
+            advanceAfterCorrect();
+          }
+        });
 
         if (isSafeHavenStop) {
           schedule(() => {
-            // Special handling for level 3: play moc3 then mocintro
-            if (currentLevel === 3) {
+            if (isFirstSafeHaven) {
               const moc3Audio = new Audio("/moc3.mp3");
               moc3Audio.play().catch((e) => console.error("moc3 play failed:", e));
-              moc3Audio.addEventListener('ended', () => {
+              moc3Audio.addEventListener("ended", () => {
                 const mocintroAudio = new Audio("/mocintro.mp3");
                 mocintroAudio.play().catch((e) => console.error("mocintro play failed:", e));
               });
             } else {
               audioManager.music("safeHaven");
             }
-            
+
             setFadeOutContent(true);
             schedule(() => {
               setSafeHavenAmount(step.amount);
               setShowSafeHavenFrame(true);
-              schedule(() => {
-                setShowSafeHavenFrame(false);
-                
-                // Special handling for level 3: show money ladder after 2s
-                if (currentLevel === 3) {
-                  schedule(() => {
-                    setShowSafeHavenMoneyLadder(true);
-                  }, 2000);
-                } else {
-                  setFadeOutContent(false);
-                  if (doubleDipActive) {
-                    setDoubleDipActive(false);
-                    setDoubleDipGuessesLeft(0);
-                  }
-                  onCorrect(currentLevel + 1);
-                }
-              }, 5000);
+              schedule(finishReveal, 5000);
             }, 1000);
           }, 2500);
         } else {
-          schedule(finishCorrect, 2500);
+          schedule(finishReveal, 2500);
         }
       } else if (doubleDipActive && doubleDipGuessesLeft > 1) {
         // === Double Dip, first miss ===
@@ -228,13 +241,13 @@ export function GameplayScreen(props: GameplayScreenProps) {
     step,
     currentLevel,
     totalQuestions,
-    onCorrect,
+    ladder,
+    advanceAfterCorrect,
     onWrong,
     doubleDipActive,
     doubleDipGuessesLeft,
     disabledAnswers,
     setDisabledAnswers,
-    setDoubleDipActive,
     setDoubleDipGuessesLeft,
     schedule,
     makeSkippable,
@@ -254,20 +267,13 @@ export function GameplayScreen(props: GameplayScreenProps) {
     setRevealState("wrong");
     audioManager.stopSuspense();
     audioManager.sfx("wrong");
-    schedule(() => {
-      onTimeout();
-    }, 3000);
-  }, [revealState, timedOut, onTimeout, schedule]);
+    schedule(makeSkippable(onTimeout), 3000);
+  }, [revealState, timedOut, onTimeout, schedule, makeSkippable]);
 
-  const handleMoneyLadderContinue = useCallback(() => {
-    setShowSafeHavenMoneyLadder(false);
-    setFadeOutContent(false);
-    if (doubleDipActive) {
-      setDoubleDipActive(false);
-      setDoubleDipGuessesLeft(0);
-    }
-    onCorrect(currentLevel + 1);
-  }, [doubleDipActive, currentLevel, onCorrect, setDoubleDipActive, setDoubleDipGuessesLeft]);
+  // Lifelines blocked on this question (not consumed, just unavailable now)
+  const blockedLifelines = new Set<LifelineId>();
+  if (fiftyUsedHere) blockedLifelines.add("double");
+  if (doubleDipActive) blockedLifelines.add("fifty");
 
   const handleUseLifeline = useCallback(
     (id: LifelineId) => {
@@ -694,12 +700,13 @@ export function GameplayScreen(props: GameplayScreenProps) {
 
       {/* Safe Haven Frame */}
       <SafeHavenFrame amount={safeHavenAmount} visible={showSafeHavenFrame} />
-      
-      {/* Safe Haven Money Ladder (for level 3 only) */}
-      <SafeHavenMoneyLadder 
-        visible={showSafeHavenMoneyLadder} 
-        safeHavenLevel={3} 
-        onContinue={handleMoneyLadderContinue}
+
+      {/* Bonus money-ladder screen shown at the first safe haven reached */}
+      <SafeHavenMoneyLadder
+        visible={showSafeHavenMoneyLadder}
+        ladder={ladder}
+        safeHavenLevel={firstSafeHavenLevel}
+        onContinue={advanceAfterCorrect}
       />
     </div>
   );

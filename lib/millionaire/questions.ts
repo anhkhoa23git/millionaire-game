@@ -3,6 +3,8 @@
 // they are derived from position via buildPrizeLadder() in prize.ts,
 // so the set can grow/shrink freely (custom questions).
 
+import { buildPrizeLadder } from "./prize";
+
 export interface Question {
   question: string;
   answers: [string, string, string, string]; // A, B, C, D
@@ -56,6 +58,8 @@ export const DEFAULT_QUESTIONS: Question[] = [
     correct: 3,
   },
 ];
+
+export const MONEY_LADDER = buildPrizeLadder(DEFAULT_QUESTIONS.length);
 
 export function formatMoney(amount: number): string {
   return amount.toLocaleString("vi-VN");
