@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { MenuScreen } from "@/components/millionaire/MenuScreen";
 import { WelcomeScreen } from "@/components/millionaire/WelcomeScreen";
 import { ContestantIntroScreen } from "@/components/millionaire/ContestantIntroScreen";
@@ -14,6 +14,8 @@ import { ReturnButton } from "@/components/millionaire/ReturnButton";
 import { CustomizeScreen } from "@/components/millionaire/CustomizeScreen";
 import { HistoryScreen } from "@/components/millionaire/HistoryScreen";
 import { SettingsModal } from "@/components/millionaire/SettingsModal";
+import { SkipControls } from "@/components/millionaire/SkipControls";
+import { setSkipHandler } from "@/lib/millionaire/skip";
 import { Question } from "@/lib/millionaire/questions";
 import { loadQuestions } from "@/lib/millionaire/questionStore";
 import { buildPrizeLadder, computeWinnings, GameOutcome } from "@/lib/millionaire/prize";
@@ -175,6 +177,28 @@ export default function Home() {
     setVideoEnded(true);
   }, []);
 
+  // Leave the contestant-banner segment (click, Skip button, or Space).
+  // Ref guard so double-clicks can't stack the timeout chain.
+  const bannersLeavingRef = useRef(false);
+  const handleBannersContinue = useCallback(() => {
+    if (bannersLeavingRef.current) return;
+    bannersLeavingRef.current = true;
+    setBannersSlideOut(true);
+    setTimeout(() => {
+      setScreen("introduction");
+      setVideoEnded(false);
+      setBannersSlideOut(false);
+      bannersLeavingRef.current = false;
+    }, 1500);
+  }, []);
+
+  // While the banner segment is showing, register it as skippable
+  useEffect(() => {
+    if (screen === "transition_video" && videoEnded && !bannersSlideOut) {
+      return setSkipHandler(handleBannersContinue);
+    }
+  }, [screen, videoEnded, bannersSlideOut, handleBannersContinue]);
+
   const handleIntroductionContinue = useCallback(() => {
     audioManager.stopMusic();
     setScreen("gameplay");
@@ -238,6 +262,21 @@ export default function Home() {
   }, []);
 
   const handleReturn = useCallback(() => {
+    // Mid-game the run cannot be "stepped back" — offer to abandon it instead
+    if (screen === "gameplay") {
+      if (confirm("Return to menu? Your current game progress will be lost.")) {
+        audioManager.stopAll();
+        setCurrentLevel(1);
+        setFinalLevel(1);
+        setUsedLifelines(new Set());
+        setDisabledAnswers(new Set());
+        setDoubleDipActive(false);
+        setDoubleDipGuessesLeft(0);
+        setScreen("menu");
+      }
+      return;
+    }
+
     // Define navigation logic for return button
     const navigationMap: Record<ScreenId, ScreenId | null> = {
       "menu": null, // No return from menu
@@ -250,7 +289,7 @@ export default function Home() {
       "transition_video": "contestant_form",
       "transition_background": "transition_video",
       "introduction": "transition_video",
-      "gameplay": "introduction",
+      "gameplay": "menu", // unreachable — handled above with confirm
       "end_walk_away": "menu",
       "end_win": "menu",
       "end_lose": "menu",
@@ -348,7 +387,9 @@ export default function Home() {
           <ContestantForm onSubmit={handleFormSubmit} showLogo={false} logoMoveUp={logoMoveUp} fadeOut={formFadeOut} />
         )}
 
-        {screen === "transition_video" && (
+        {/* Unmounted once the video ends — the background block below takes
+            over, so only ONE contestant lower-third exists at a time */}
+        {screen === "transition_video" && !videoEnded && (
           <VideoPlaceholder
             title={`Welcome, ${contestant.name}!`}
             subtitle="TRANSITION VIDEO"
@@ -367,16 +408,7 @@ export default function Home() {
         {screen === "transition_video" && videoEnded && (
           <div
             className="transition-background relative w-full h-full overflow-hidden cursor-pointer"
-            onClick={() => {
-              // Trigger banner slide-out animation
-              setBannersSlideOut(true);
-              // After animation, switch to introduction screen
-              setTimeout(() => {
-                setScreen("introduction");
-                setVideoEnded(false);
-                setBannersSlideOut(false);
-              }, 1500);
-            }}
+            onClick={handleBannersContinue}
             style={{
               backgroundImage: "url('/background-reversemain.png')",
               backgroundSize: "cover",
@@ -439,6 +471,9 @@ export default function Home() {
         )}
 
         {screen === "outro" && <OutroScreen onContinue={handleOutroContinue} />}
+
+        {/* Global skip: Space key + corner button + hint (visible only when a segment is skippable) */}
+        <SkipControls />
       </div>
 
       <style jsx>{`
