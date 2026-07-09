@@ -8,6 +8,8 @@ export interface GameSettings {
   timerBaseSeconds: number;
   sfxVolume: number;   // 0..1
   musicVolume: number; // 0..1
+  // Pinned top prize (last question). 0 = auto (double up from 200).
+  topPrize: number;
 }
 
 export const DEFAULT_SETTINGS: GameSettings = {
@@ -15,6 +17,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   timerBaseSeconds: 30,
   sfxVolume: 0.7,
   musicVolume: 0.6,
+  topPrize: 0,
 };
 
 export function loadSettings(): GameSettings {
