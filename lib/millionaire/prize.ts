@@ -34,15 +34,44 @@ export function safeHavenLevels(totalQuestions: number): Set<number> {
   return havens;
 }
 
-export function buildPrizeLadder(totalQuestions: number): PrizeStep[] {
-  const havens = safeHavenLevels(totalQuestions);
-  const ladder: PrizeStep[] = [];
+// Auto ladder: start at BASE_AMOUNT and double up with nice rounding.
+function amountsFromBase(totalQuestions: number): number[] {
+  const amounts: number[] = [];
   let amount = BASE_AMOUNT;
   for (let level = 1; level <= totalQuestions; level++) {
-    ladder.push({ level, amount, safe: havens.has(level) });
+    amounts.push(amount);
     amount = roundNice(amount * 2);
   }
-  return ladder;
+  return amounts;
+}
+
+// Pinned-top ladder: the final question is EXACTLY topPrize, each earlier
+// question is half of the next, nicely rounded (real game-show feel:
+// 1,000,000 → 500,000 → 250,000 → …). Guards keep the sequence strictly
+// increasing even if topPrize is so small the bottom rungs would collide.
+function amountsFromTop(totalQuestions: number, topPrize: number): number[] {
+  const amounts = new Array<number>(totalQuestions);
+  amounts[totalQuestions - 1] = Math.max(1, Math.floor(topPrize));
+  for (let i = totalQuestions - 2; i >= 0; i--) {
+    const next = amounts[i + 1];
+    let value = Math.floor(roundNice(next / 2)); // integer money, no 2.5 etc.
+    if (value >= next) value = next - 1;         // guarantee strictly increasing
+    amounts[i] = Math.max(1, value);
+  }
+  return amounts;
+}
+
+export function buildPrizeLadder(totalQuestions: number, topPrize = 0): PrizeStep[] {
+  const havens = safeHavenLevels(totalQuestions);
+  const amounts =
+    topPrize > 0
+      ? amountsFromTop(totalQuestions, topPrize)
+      : amountsFromBase(totalQuestions);
+  return amounts.map((amount, i) => ({
+    level: i + 1,
+    amount,
+    safe: havens.has(i + 1),
+  }));
 }
 
 export type GameOutcome = "win" | "wrong" | "walk_away" | "timeout";

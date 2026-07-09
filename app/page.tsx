@@ -55,7 +55,10 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const ladder = useMemo(() => buildPrizeLadder(questions.length), [questions]);
+  const ladder = useMemo(
+    () => buildPrizeLadder(questions.length, settings.topPrize),
+    [questions, settings.topPrize]
+  );
 
   const recordGame = useCallback(
     (correctCount: number, winnings: number, outcome: GameOutcome) => {
@@ -73,6 +76,21 @@ export default function Home() {
     [contestant, questions.length, usedLifelines]
   );
 
+  // Pending logo-animation timers. Tracked so we can cancel them when the
+  // user navigates back (or replays) — otherwise a queued "move logo up"
+  // fires on a later screen and the logo gets stuck at the top over its text.
+  const logoTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const scheduleLogo = useCallback((fn: () => void, ms: number) => {
+    logoTimers.current.push(setTimeout(fn, ms));
+  }, []);
+  const resetLogoPosition = useCallback(() => {
+    logoTimers.current.forEach(clearTimeout);
+    logoTimers.current = [];
+    setLogoMoveUp(false);
+    setLogoMoveToCenter(false);
+    setFormFadeOut(false);
+  }, []);
+
   // ---------- State transitions ----------
   const handlePlay = useCallback(() => {
     // Reset all state for new game; re-read questions so edits apply immediately
@@ -84,9 +102,10 @@ export default function Home() {
     setDisabledAnswers(new Set());
     setDoubleDipActive(false);
     setDoubleDipGuessesLeft(0);
+    resetLogoPosition();
     setShowLogo(false);
     setScreen("intro_video");
-  }, []);
+  }, [resetLogoPosition]);
 
   const handleCustomize = useCallback(() => {
     audioManager.sfx("buttonClick");
@@ -120,9 +139,10 @@ export default function Home() {
       setDoubleDipActive(false);
       setDoubleDipGuessesLeft(0);
       setContestant({ name: "", location: "" });
+      resetLogoPosition();
       setScreen("menu");
     }
-  }, []);
+  }, [resetLogoPosition]);
 
   const handleExit = useCallback(() => {
     if (confirm("Exit the game?")) {
@@ -144,10 +164,10 @@ export default function Home() {
   const handleContestantIntroContinue = useCallback(() => {
     setScreen("contestant_form");
     // Trigger logo move-up animation after 1s
-    setTimeout(() => {
+    scheduleLogo(() => {
       setLogoMoveUp(true);
     }, 1000);
-  }, []);
+  }, [scheduleLogo]);
 
   const handleFormSubmit = useCallback((name: string, location: string) => {
     setContestant({ name, location });
@@ -155,22 +175,22 @@ export default function Home() {
     // Start form fade out
     setFormFadeOut(true);
     // Wait for form to fade out (0.5s), then reset and move logo to center
-    setTimeout(() => {
+    scheduleLogo(() => {
       setShowLogo(true);
       setLogoMoveUp(false);
       setLogoMoveToCenter(true);
       setFormFadeOut(false);
       // Wait for logo animation, then switch to video
-      setTimeout(() => {
+      scheduleLogo(() => {
         setScreen("transition_video");
         // Hide logo after 4s of video
-        setTimeout(() => {
+        scheduleLogo(() => {
           setShowLogo(false);
           setLogoMoveToCenter(false);
         }, 4000);
       }, 1000);
     }, 500);
-  }, []);
+  }, [scheduleLogo]);
 
   const handleTransitionVideoEnd = useCallback(() => {
     // Instead of switching screen, just mark video as ended
@@ -298,10 +318,13 @@ export default function Home() {
 
     const previousScreen = navigationMap[screen];
     if (previousScreen) {
+      // Clear queued logo moves + reset its position so it never lands at the
+      // top over the previous screen's text.
+      resetLogoPosition();
       audioManager.stopAll();
       setScreen(previousScreen);
     }
-  }, [screen]);
+  }, [screen, resetLogoPosition]);
 
   // ---------- Render ----------
   const showLogoInScreens = screen === "welcome" || screen === "contestant_intro" || screen === "contestant_form" || screen === "transition_video";
@@ -346,6 +369,8 @@ export default function Home() {
           <CustomizeScreen
             questions={questions}
             onQuestionsChange={setQuestions}
+            topPrize={settings.topPrize}
+            onTopPrizeChange={(v) => handleSaveSettings({ ...settings, topPrize: v })}
             onBack={() => setScreen("menu")}
           />
         )}
