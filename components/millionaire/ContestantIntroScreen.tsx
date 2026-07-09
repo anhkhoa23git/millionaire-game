@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { Khung1Frame } from "./Khung1Frame";
+import { setSkipHandler } from "@/lib/millionaire/skip";
 
 interface ContestantIntroScreenProps {
   onContinue: () => void;
@@ -19,6 +20,9 @@ export function ContestantIntroScreen({ onContinue, showLogo = true }: Contestan
       clearTimeout(timer);
     };
   }, [onContinue]);
+
+  // Space/Skip ends this segment early
+  useEffect(() => setSkipHandler(onContinue), [onContinue]);
 
   return (
     <div

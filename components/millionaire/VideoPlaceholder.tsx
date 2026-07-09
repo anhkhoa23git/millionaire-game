@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
+import { setSkipHandler } from "@/lib/millionaire/skip";
 
 interface VideoPlaceholderProps {
   title: string;
@@ -30,16 +31,60 @@ export function VideoPlaceholder({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [showBanners, setShowBanners] = useState(false);
+  const [skipping, setSkipping] = useState(false);
+  const skipPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    if (videoRef.current && videoSrc) {
-      const playPromise = videoRef.current.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(error => {
-          // Video play was prevented (e.g., file not found)
-          console.warn('Video play failed:', error);
-        });
-      }
+    return () => {
+      if (skipPollRef.current) clearInterval(skipPollRef.current);
+    };
+  }, []);
+
+  // Skip = mute + fast-forward, not a hard cut:
+  // - real video: mute it and play at 16× so it visibly rushes to its end
+  // - placeholder: quick 0.3s fade, then advance
+  // A poll watches the fast-forward instead of trusting the 'ended' event:
+  // it advances the flow when the video finishes OR stalls (strict autoplay
+  // policies can refuse playback entirely).
+  const handleSkip = useCallback(() => {
+    setSkipping(true);
+    const video = videoRef.current;
+    if (video && videoSrc && videoLoaded && !video.ended) {
+      video.muted = true;
+      video.playbackRate = 16;
+      video.play().catch(() => onSkip());
+      let last = video.currentTime;
+      skipPollRef.current = setInterval(() => {
+        const finished = video.ended;
+        const stalled = video.currentTime <= last;
+        if (finished || stalled) {
+          if (skipPollRef.current) clearInterval(skipPollRef.current);
+          skipPollRef.current = null;
+          onSkip();
+        }
+        last = video.currentTime;
+      }, 400);
+    } else {
+      setTimeout(onSkip, 300);
+    }
+  }, [videoSrc, videoLoaded, onSkip]);
+
+  // Register as the current skippable segment (one-shot: not re-registered
+  // once skipping has started)
+  useEffect(() => {
+    if (skipping) return;
+    return setSkipHandler(handleSkip);
+  }, [skipping, handleSkip]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video && videoSrc) {
+      video.play().catch(() => {
+        // Autoplay with sound blocked → standard fallback: retry muted so the
+        // flow can never get stuck waiting for a video that won't start
+        video.muted = true;
+        video.play().catch((error) => console.warn("Video play failed:", error));
+      });
     }
   }, [videoSrc]);
 
@@ -76,6 +121,9 @@ export function VideoPlaceholder({
       className="video-placeholder relative w-full h-full overflow-hidden flex items-center justify-center"
       style={{
         animation: fadeIn ? "fade-in-video 1s ease-out" : "none",
+        // Placeholder mode has no video to fast-forward — fade out instead
+        opacity: skipping && !(videoSrc && videoLoaded) ? 0 : 1,
+        transition: "opacity 0.3s ease-out",
       }}
     >
       {/* Background image (same as menu) */}
@@ -170,15 +218,7 @@ export function VideoPlaceholder({
         </>
       )}
 
-      {/* Skip button */}
-      <button
-        type="button"
-        onClick={onSkip}
-        className="absolute bottom-6 right-6 px-4 py-2 text-white/60 hover:text-white text-[14px] tracking-widest border border-white/20 hover:border-white/50 rounded transition-all"
-        style={{ fontFamily: "Arial, sans-serif" }}
-      >
-        SKIP ▸
-      </button>
+      {/* Skip UI is provided globally by SkipControls (Space / corner button) */}
 
       {/* Lower Third Banners - Contestant Info */}
       {showLowerThird && showBanners && (
@@ -197,10 +237,10 @@ export function VideoPlaceholder({
       )}
 
       <style jsx>{`
-        /* Lower Third Container */
+        /* Lower Third Container — absolute so it stays inside the stage */
         .lower-third-container {
-          position: fixed;
-          bottom: 40px;
+          position: absolute;
+          bottom: clamp(16px, 5cqh, 40px);
           left: 50%;
           transform: translateX(-50%);
           z-index: 100;
@@ -209,11 +249,11 @@ export function VideoPlaceholder({
         /* Upper small banner - "Contestant" */
         .upper-banner {
           position: absolute;
-          bottom: 85px;
+          bottom: clamp(60px, 11cqh, 85px);
           left: 50%;
           transform: translateX(-50%);
-          width: 280px;
-          height: 38px;
+          width: clamp(180px, 24cqw, 280px);
+          height: clamp(30px, 5cqh, 38px);
           background: linear-gradient(135deg, rgba(10, 25, 41, 0.95) 0%, rgba(15, 30, 50, 0.95) 100%);
           border: 2px solid #D4AF37;
           border-radius: 8px;
@@ -243,8 +283,8 @@ export function VideoPlaceholder({
           bottom: 0;
           left: 50%;
           transform: translateX(-50%);
-          width: 520px;
-          height: 78px;
+          width: min(90cqw, 520px);
+          height: clamp(58px, 10cqh, 78px);
           background: linear-gradient(135deg, rgba(10, 25, 41, 0.95) 0%, rgba(15, 30, 50, 0.95) 100%);
           border: 3px solid #D4AF37;
           border-radius: 12px;
@@ -265,7 +305,7 @@ export function VideoPlaceholder({
         .contestant-name {
           color: #D4AF37;
           font-family: Arial, sans-serif;
-          font-size: 32px;
+          font-size: clamp(20px, 3.2cqw, 32px);
           font-weight: 800;
           letter-spacing: 0.05em;
           text-shadow: 
@@ -276,7 +316,7 @@ export function VideoPlaceholder({
         .contestant-location {
           color: #FFFFFF;
           font-family: Arial, sans-serif;
-          font-size: 18px;
+          font-size: clamp(13px, 1.8cqw, 18px);
           font-weight: 500;
           letter-spacing: 0.08em;
           text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
