@@ -20,9 +20,6 @@ export function SafeHavenFrame({ amount, visible }: SafeHavenFrameProps) {
         width: "90%",
         maxWidth: "1200px",
         height: "clamp(64px, 14cqh, 100px)",
-        opacity: visible ? 1 : 0,
-        transition: "opacity 1s ease-in-out",
-        animation: visible ? "fadeInScale 1s ease-out" : "none",
       }}
     >
       {/* Hexagonal shape with pointed ends */}
@@ -38,13 +35,6 @@ export function SafeHavenFrame({ amount, visible }: SafeHavenFrameProps) {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          transition: "transform 0.3s ease",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = "scale(1.02)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = "scale(1)";
         }}
       >
         {/* Inner glow */}
@@ -77,17 +67,6 @@ export function SafeHavenFrame({ amount, visible }: SafeHavenFrameProps) {
       </div>
 
       <style jsx>{`
-        @keyframes fadeInScale {
-          0% {
-            opacity: 0;
-            transform: translateX(-50%) scale(0.8);
-          }
-          100% {
-            opacity: 1;
-            transform: translateX(-50%) scale(1);
-          }
-        }
-
         @media (max-width: 768px) {
           .safe-haven-frame {
             width: 95% !important;

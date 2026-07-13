@@ -442,6 +442,7 @@ export default function Home() {
             questions={questions}
             ladder={ladder}
             settings={settings}
+            contestant={contestant}
             currentLevel={currentLevel}
             usedLifelines={usedLifelines}
             onUseLifeline={handleUseLifeline}

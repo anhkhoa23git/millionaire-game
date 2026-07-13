@@ -57,6 +57,10 @@ export const DEFAULT_QUESTIONS: Question[] = [
   },
 ];
 
+import { buildPrizeLadder } from "./prize";
+
+export const MONEY_LADDER = buildPrizeLadder(DEFAULT_QUESTIONS.length);
+
 export function formatMoney(amount: number): string {
   return amount.toLocaleString("vi-VN");
 }
