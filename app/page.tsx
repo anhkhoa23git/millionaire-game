@@ -277,6 +277,19 @@ export default function Home() {
       return;
     }
 
+    // Special handling for end_lose: allow retry from the failed question
+    if (screen === "end_lose") {
+      if (confirm("Retry from the failed question?")) {
+        audioManager.stopAll();
+        // Retry the same question that was failed
+        setDisabledAnswers(new Set());
+        setDoubleDipActive(false);
+        setDoubleDipGuessesLeft(0);
+        setScreen("gameplay");
+      }
+      return;
+    }
+
     // Define navigation logic for return button
     const navigationMap: Record<ScreenId, ScreenId | null> = {
       "menu": null, // No return from menu
@@ -301,7 +314,7 @@ export default function Home() {
       audioManager.stopAll();
       setScreen(previousScreen);
     }
-  }, [screen]);
+  }, [screen, currentLevel]);
 
   // ---------- Render ----------
   const showLogoInScreens = screen === "welcome" || screen === "contestant_intro" || screen === "contestant_form" || screen === "transition_video";
