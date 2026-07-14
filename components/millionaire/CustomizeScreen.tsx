@@ -17,16 +17,29 @@ import { audioManager } from "@/lib/millionaire/audio";
 interface CustomizeScreenProps {
   questions: Question[];
   onQuestionsChange: (qs: Question[]) => void;
+  topPrize: number;                      // 0 = auto (double up from 200)
+  onTopPrizeChange: (value: number) => void;
   onBack: () => void;
 }
 
-export function CustomizeScreen({ questions, onQuestionsChange, onBack }: CustomizeScreenProps) {
+// Quick presets for the top prize input (label → value)
+const PRIZE_PRESETS: { label: string; value: number }[] = [
+  { label: "Tự động", value: 0 },
+  { label: "1 triệu", value: 1_000_000 },
+  { label: "30 triệu", value: 30_000_000 },
+  { label: "150 triệu", value: 150_000_000 },
+];
+
+export function CustomizeScreen({ questions, onQuestionsChange, topPrize, onTopPrizeChange, onBack }: CustomizeScreenProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null); // index being edited
   const [adding, setAdding] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const ladder = useMemo(() => buildPrizeLadder(questions.length), [questions.length]);
+  const ladder = useMemo(
+    () => buildPrizeLadder(questions.length, topPrize),
+    [questions.length, topPrize]
+  );
 
   const persist = (next: Question[]) => {
     onQuestionsChange(next);
@@ -146,6 +159,49 @@ export function CustomizeScreen({ questions, onQuestionsChange, onBack }: Custom
         }}
       />
 
+      {/* Top prize control */}
+      <div
+        className="flex items-center flex-wrap gap-3"
+        style={{ padding: "0 clamp(12px, 3cqw, 40px) clamp(8px, 1.5cqh, 16px)" }}
+      >
+        <span
+          className="text-[#D4AF37] font-bold flex-shrink-0"
+          style={{ fontFamily: "Arial, sans-serif", fontSize: "clamp(14px, 1.6cqw, 17px)" }}
+        >
+          Giải thưởng cao nhất (câu cuối):
+        </span>
+        <input
+          type="number"
+          min={0}
+          step={1000}
+          value={topPrize || ""}
+          placeholder="0 = tự động"
+          onChange={(e) => {
+            const v = Math.max(0, Math.floor(Number(e.target.value) || 0));
+            onTopPrizeChange(v);
+          }}
+          className="rounded-lg text-white"
+          style={{
+            width: "clamp(140px, 20cqw, 200px)",
+            padding: "8px 12px",
+            background: "rgba(1,29,84,0.6)",
+            border: "1px solid rgba(212,175,55,0.5)",
+            fontFamily: "Arial, sans-serif",
+            fontSize: "clamp(14px, 1.5cqw, 16px)",
+          }}
+        />
+        <div className="flex gap-2 flex-wrap">
+          {PRIZE_PRESETS.map((p) => (
+            <ToolbarButton
+              key={p.label}
+              label={p.label}
+              primary={topPrize === p.value}
+              onClick={() => onTopPrizeChange(p.value)}
+            />
+          ))}
+        </div>
+      </div>
+
       {notice && (
         <div
           className="mx-10 mb-2 px-4 py-2 rounded-lg text-[15px] cursor-pointer"
@@ -214,7 +270,10 @@ export function CustomizeScreen({ questions, onQuestionsChange, onBack }: Custom
         })}
 
         <p className="text-white/40 text-[14px] mt-4 text-center" style={{ fontFamily: "Arial, sans-serif" }}>
-          {questions.length} câu hỏi · Mốc an toàn (★) tự tính ở 1/3, 2/3 chặng đường và câu cuối · Thang tiền tự nhân đôi từ 200
+          {questions.length} câu hỏi · Mốc an toàn (★) tự tính ở 1/3, 2/3 chặng đường và câu cuối ·{" "}
+          {topPrize > 0
+            ? `Ghim giải cao nhất ${formatMoney(topPrize)}, chia đôi lùi dần`
+            : "Thang tiền tự nhân đôi từ 200"}
         </p>
       </div>
 
