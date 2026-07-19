@@ -6,7 +6,7 @@
 export interface Question {
   question: string;
   answers: [string, string, string, string]; // A, B, C, D
-  correct: 0 | 1 | 2 | 3 | 4;                    // index of correct answer (4 = hidden E)
+  correct: 0 | 1 | 2 | 3;                    // index of correct answer
 }
 
 export const DEFAULT_QUESTIONS: Question[] = [
@@ -53,7 +53,7 @@ export const DEFAULT_QUESTIONS: Question[] = [
   {
     question: "Who is the most handsome?",
     answers: ["Mr. Tâm", "Mr. Trung", "Mr. Quyền", "Mr. Duy"],
-    correct: 4, // Hidden answer E: Mr. Bảo
+    correct: 3,
   },
 ];
 
