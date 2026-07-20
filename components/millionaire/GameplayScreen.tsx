@@ -17,6 +17,8 @@ import { setSkipHandler } from "@/lib/millionaire/skip";
 import {
   LifelineId,
   simulateAudiencePoll,
+  computeFiftyFiftyDisabled,
+  isBlockedLifelineCombo,
 } from "@/lib/millionaire/lifelines";
 import { AnswerState, ContestantInfo } from "@/lib/millionaire/state";
 import { getAnswerState } from "@/lib/millionaire/answerStateUtil";
@@ -28,11 +30,16 @@ import {
   type GameplayDeps,
 } from "@/lib/millionaire/revealphases";
 import {
+  continueFromMoneyLadder,
+  onMiddleVideoEnd,
+  onMiddleIntroClick,
+  onDarknessVideoEnd,
+  type Level6Deps,
+} from "@/lib/millionaire/level6video";
+import {
   MOC3_SAFE_HAVEN_LEVEL,
-  MIDDLE_VIDEO_LEVEL,
   WRONG_REVEAL_MS,
   LIFELINE_NOTICE_MS,
-  ANSWER_INDICES,
 } from "@/lib/millionaire/gameTuning";
 
 interface GameplayScreenProps {
@@ -249,42 +256,40 @@ export function GameplayScreen(props: GameplayScreenProps) {
     schedule(makeSkippable(onTimeout), WRONG_REVEAL_MS);
   }, [revealState, timedOut, onTimeout, schedule, makeSkippable]);
 
+  // Gather setters / callbacks for the extracted level-6 video handlers.
+  const buildLevel6Deps = useCallback(
+    (): Level6Deps => ({
+      currentLevel,
+      doubleDipActive,
+      setShowSafeHavenMoneyLadder,
+      setFadeOutContent,
+      setShowMiddleVideo,
+      setShowMiddleIntro,
+      setShowDarknessVideo,
+      setLevel6SafeHavenLevel,
+      setDoubleDipActive,
+      setDoubleDipGuessesLeft,
+      onCorrect,
+    }),
+    [currentLevel, doubleDipActive, onCorrect]
+  );
+
   const handleMoneyLadderContinue = useCallback(() => {
-    setShowSafeHavenMoneyLadder(false);
-    setFadeOutContent(false);
-    if (doubleDipActive) {
-      setDoubleDipActive(false);
-      setDoubleDipGuessesLeft(0);
-    }
-    
-    // Level 6: Start darkness video after money ladder
-    if (currentLevel === MIDDLE_VIDEO_LEVEL) {
-      setShowDarknessVideo(true);
-    } else {
-      onCorrect(currentLevel + 1);
-    }
-  }, [doubleDipActive, currentLevel, onCorrect, setDoubleDipActive, setDoubleDipGuessesLeft]);
+    continueFromMoneyLadder(buildLevel6Deps());
+  }, [buildLevel6Deps]);
 
   // Level 6 handlers
   const handleMiddleVideoEnd = useCallback(() => {
-    setShowMiddleVideo(false);
-    setShowMiddleIntro(true);
-  }, []);
+    onMiddleVideoEnd(buildLevel6Deps());
+  }, [buildLevel6Deps]);
 
   const handleMiddleIntroClick = useCallback(() => {
-    setShowMiddleIntro(false);
-    setShowSafeHavenMoneyLadder(true);
-    setLevel6SafeHavenLevel(6);
-  }, []);
+    onMiddleIntroClick(buildLevel6Deps());
+  }, [buildLevel6Deps]);
 
   const handleDarknessVideoEnd = useCallback(() => {
-    setShowDarknessVideo(false);
-    if (doubleDipActive) {
-      setDoubleDipActive(false);
-      setDoubleDipGuessesLeft(0);
-    }
-    onCorrect(currentLevel + 1);
-  }, [doubleDipActive, currentLevel, onCorrect, setDoubleDipActive, setDoubleDipGuessesLeft]);
+    onDarknessVideoEnd(buildLevel6Deps());
+  }, [buildLevel6Deps]);
 
   // Lifelines blocked on this question (not consumed, just unavailable now)
   const blockedLifelines = new Set<LifelineId>();
@@ -295,7 +300,7 @@ export function GameplayScreen(props: GameplayScreenProps) {
     (id: LifelineId) => {
       if (usedLifelines.has(id)) return;
       if (revealState !== "idle") return;
-      if ((id === "double" && fiftyUsedHere) || (id === "fifty" && doubleDipActive)) {
+      if (isBlockedLifelineCombo(id, fiftyUsedHere, doubleDipActive)) {
         // Blocked combo — light feedback, lifeline is NOT consumed
         audioManager.sfx("timerWarning");
         setLifelineNotice("50:50 và Double Dip không dùng chung trong 1 câu");
@@ -308,9 +313,7 @@ export function GameplayScreen(props: GameplayScreenProps) {
       if (id === "fifty") {
         setFiftyUsedHere(true);
         // Disable 2 wrong answers (keep correct + 1 wrong)
-        const wrongIndices = ANSWER_INDICES.filter((i) => i !== question.correct);
-        const shuffled = wrongIndices.sort(() => Math.random() - 0.5);
-        const toDisable = new Set([...disabledAnswers, shuffled[0], shuffled[1]]);
+        const toDisable = computeFiftyFiftyDisabled(question.correct, disabledAnswers);
         setDisabledAnswers(toDisable);
       } else if (id === "audience") {
         const poll = simulateAudiencePoll(question.correct);
