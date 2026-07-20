@@ -491,3 +491,99 @@
   -webkit-user-select: none;
 }
 
+
+/* ===== Game flow screens (app/page.tsx) ===== */
+@keyframes logo-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-in-bg {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.transition-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+}
+
+.lower-third-container {
+  position: absolute;
+  bottom: clamp(16px, 5cqh, 40px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  transition: all 1.5s ease-out;
+}
+
+.lower-third-container.slide-out {
+  opacity: 0;
+}
+
+.upper-banner {
+  position: absolute;
+  bottom: clamp(60px, 11cqh, 85px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: clamp(180px, 24cqw, 280px);
+  height: clamp(30px, 5cqh, 38px);
+  background: linear-gradient(135deg, rgba(10, 25, 41, 0.95) 0%, rgba(15, 30, 50, 0.95) 100%);
+  border: 2px solid #D4AF37;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.6), 0 0 40px rgba(212, 175, 55, 0.3), 0 4px 12px rgba(0, 0, 0, 0.6);
+}
+
+.upper-banner span {
+  color: #FFFFFF;
+  font-family: Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.lower-banner {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(90cqw, 520px);
+  height: clamp(58px, 10cqh, 78px);
+  background: linear-gradient(135deg, rgba(10, 25, 41, 0.95) 0%, rgba(15, 30, 50, 0.95) 100%);
+  border: 3px solid #D4AF37;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px 24px;
+  box-shadow: 0 0 25px rgba(212, 175, 55, 0.7), 0 0 50px rgba(212, 175, 55, 0.4), 0 0 75px rgba(99, 102, 241, 0.2), 0 6px 16px rgba(0, 0, 0, 0.7);
+}
+
+.contestant-name {
+  color: #D4AF37;
+  font-family: Arial, sans-serif;
+  font-size: clamp(20px, 3.2cqw, 32px);
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9), 0 0 20px rgba(212, 175, 55, 0.4);
+}
+
+.contestant-location {
+  color: #FFFFFF;
+  font-family: Arial, sans-serif;
+  font-size: clamp(13px, 1.8cqw, 18px);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
