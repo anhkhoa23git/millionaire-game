@@ -11,7 +11,7 @@ export function MiddleVideoScreen({ onVideoEnd }: MiddleVideoScreenProps) {
     <div className="middle-video-screen fixed inset-0 z-[10000] bg-black">
       <ChunkedVideoPlayer
         videoFolder="/videos/middle"
-        totalChunks={2}
+        totalChunks={5}
         onVideoEnd={onVideoEnd}
       />
     </div>

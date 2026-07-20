@@ -11,7 +11,7 @@ export function DarknessVideoScreen({ onVideoEnd }: DarknessVideoScreenProps) {
     <div className="darkness-video-screen fixed inset-0 z-[10000] bg-black">
       <ChunkedVideoPlayer
         videoFolder="/videos/darknessau"
-        totalChunks={1}
+        totalChunks={2}
         onVideoEnd={onVideoEnd}
       />
     </div>

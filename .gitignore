@@ -4,3 +4,7 @@ node_modules
 *.log
 .DS_Store
 .vercel
+
+# Large original video files (use chunked versions under public/videos/)
+public/middle.mp4
+public/darknessau.mp4
