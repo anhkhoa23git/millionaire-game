@@ -19,6 +19,23 @@ import {
   simulateAudiencePoll,
 } from "@/lib/millionaire/lifelines";
 import { AnswerState, ContestantInfo } from "@/lib/millionaire/state";
+import { getAnswerState } from "@/lib/millionaire/answerStateUtil";
+import {
+  MOC3_SAFE_HAVEN_LEVEL,
+  MIDDLE_VIDEO_LEVEL,
+  REVEAL_TEXT_HIDE_MS,
+  SUSPENSE_MIN_MS,
+  SUSPENSE_MAX_BONUS_MS,
+  SAFE_HAVEN_FADE_OUT_MS,
+  SAFE_HAVEN_FRAME_SHOW_DELAY_MS,
+  SAFE_HAVEN_FRAME_VISIBLE_MS,
+  SAFE_HAVEN_FRAME_ORDINARY_MS,
+  MOC3_MONEY_LADDER_DELAY_MS,
+  WRONG_REVEAL_MS,
+  DOUBLE_DIP_FIRST_MISS_MS,
+  LIFELINE_NOTICE_MS,
+  ANSWER_INDICES,
+} from "@/lib/millionaire/gameTuning";
 
 interface GameplayScreenProps {
   questions: Question[];
@@ -50,10 +67,6 @@ type RevealState =
   | "wrong"          // red reveal — question lost (or timed out)
   | "dip_wrong";     // Double Dip first miss: mark red, do NOT reveal the answer
 
-// Levels with special cinematic sequences. Kept as named constants so the
-// flow is obvious and easy to retune without hunting magic numbers.
-const MOC3_SAFE_HAVEN_LEVEL = 3;   // moc3 + mocintro audio sting
-const MIDDLE_VIDEO_LEVEL = 6;      // middle video → middle intro → darkness video
 
 export function GameplayScreen(props: GameplayScreenProps) {
   const {
@@ -156,7 +169,7 @@ export function GameplayScreen(props: GameplayScreenProps) {
 
     // Suspense grows with the stakes: 1.5s early, up to 3s near the top
     const progress = totalQuestions > 1 ? (currentLevel - 1) / (totalQuestions - 1) : 0;
-    const suspenseMs = 1500 + Math.round(progress * 1500);
+    const suspenseMs = SUSPENSE_MIN_MS + Math.round(progress * SUSPENSE_MAX_BONUS_MS);
 
     schedule(() => {
       audioManager.stopSuspense();
@@ -168,14 +181,14 @@ export function GameplayScreen(props: GameplayScreenProps) {
         // Hide reveal text after 2s
         schedule(() => {
           setRevealState("idle");
-        }, 2000);
+        }, REVEAL_TEXT_HIDE_MS);
 
         const isSafeHavenStop = (step?.safe ?? false) && currentLevel < totalQuestions;
 
         if (isSafeHavenStop) {
           schedule(() => {
             // Special audio for level 3 safe haven only
-            if (currentLevel === 3) {
+            if (currentLevel === MOC3_SAFE_HAVEN_LEVEL) {
               const moc3Audio = new Audio("/moc3.mp3");
               moc3Audio.play().catch((e) => console.error("moc3 play failed:", e));
               moc3Audio.addEventListener('ended', () => {
@@ -195,7 +208,7 @@ export function GameplayScreen(props: GameplayScreenProps) {
                 if (currentLevel === MOC3_SAFE_HAVEN_LEVEL) {
                   schedule(() => {
                     setShowSafeHavenMoneyLadder(true);
-                  }, 6000);
+                  }, MOC3_MONEY_LADDER_DELAY_MS);
                 } else if (currentLevel === MIDDLE_VIDEO_LEVEL) {
                   // Level 6: Start middle video sequence
                   setFadeOutContent(false);
@@ -208,9 +221,9 @@ export function GameplayScreen(props: GameplayScreenProps) {
                   }
                   onCorrect(currentLevel + 1);
                 }
-              }, 5000);
-            }, 1000);
-          }, 2500);
+              }, SAFE_HAVEN_FRAME_VISIBLE_MS);
+            }, SAFE_HAVEN_FADE_OUT_MS);
+          }, SAFE_HAVEN_FRAME_SHOW_DELAY_MS);
         } else {
           // Non-safe-haven correct answer: show frame for ALL levels
           schedule(() => {
@@ -226,9 +239,9 @@ export function GameplayScreen(props: GameplayScreenProps) {
                   setDoubleDipGuessesLeft(0);
                 }
                 onCorrect(currentLevel + 1);
-              }, 3000);
-            }, 1000);
-          }, 2500);
+              }, SAFE_HAVEN_FRAME_ORDINARY_MS);
+            }, SAFE_HAVEN_FADE_OUT_MS);
+          }, SAFE_HAVEN_FRAME_SHOW_DELAY_MS);
         }
       } else if (doubleDipActive && doubleDipGuessesLeft > 1) {
         // === Double Dip, first miss ===
@@ -242,12 +255,12 @@ export function GameplayScreen(props: GameplayScreenProps) {
           setDisabledAnswers(new Set([...disabledAnswers, selectedAnswer]));
           setDoubleDipGuessesLeft(doubleDipGuessesLeft - 1);
         });
-        schedule(finishDip, 1500);
+        schedule(finishDip, DOUBLE_DIP_FIRST_MISS_MS);
       } else {
         // Wrong for real (second dip guess counts as a normal answer)
         setRevealState("wrong");
         audioManager.sfx("wrong");
-        schedule(makeSkippable(onWrong), 3000);
+        schedule(makeSkippable(onWrong), WRONG_REVEAL_MS);
       }
     }, suspenseMs);
   }, [
@@ -282,7 +295,7 @@ export function GameplayScreen(props: GameplayScreenProps) {
     setRevealState("wrong");
     audioManager.stopSuspense();
     audioManager.sfx("wrong");
-    schedule(makeSkippable(onTimeout), 3000);
+    schedule(makeSkippable(onTimeout), WRONG_REVEAL_MS);
   }, [revealState, timedOut, onTimeout, schedule, makeSkippable]);
 
   const handleMoneyLadderContinue = useCallback(() => {
@@ -335,7 +348,7 @@ export function GameplayScreen(props: GameplayScreenProps) {
         // Blocked combo — light feedback, lifeline is NOT consumed
         audioManager.sfx("timerWarning");
         setLifelineNotice("50:50 và Double Dip không dùng chung trong 1 câu");
-        schedule(() => setLifelineNotice(null), 2500);
+        schedule(() => setLifelineNotice(null), LIFELINE_NOTICE_MS);
         return;
       }
       audioManager.sfx("lifeline");
@@ -344,7 +357,7 @@ export function GameplayScreen(props: GameplayScreenProps) {
       if (id === "fifty") {
         setFiftyUsedHere(true);
         // Disable 2 wrong answers (keep correct + 1 wrong)
-        const wrongIndices = [0, 1, 2, 3].filter((i) => i !== question.correct);
+        const wrongIndices = ANSWER_INDICES.filter((i) => i !== question.correct);
         const shuffled = wrongIndices.sort(() => Math.random() - 0.5);
         const toDisable = new Set([...disabledAnswers, shuffled[0], shuffled[1]]);
         setDisabledAnswers(toDisable);
@@ -401,19 +414,8 @@ export function GameplayScreen(props: GameplayScreenProps) {
     );
   }
 
-  // Compute answer state for each box
-  const getAnswerState = (idx: number): AnswerState => {
-    if (disabledAnswers.has(idx)) return "disabled";
-    if (revealState === "correct" && idx === question.correct) return "correct";
-    if (revealState === "wrong") {
-      if (idx === selectedAnswer) return "wrong";
-      if (idx === question.correct) return "correct";
-    }
-    // Double Dip first miss: mark the pick wrong but keep the answer secret
-    if (revealState === "dip_wrong" && idx === selectedAnswer) return "wrong";
-    if (selectedAnswer === idx) return "selected";
-    return "default";
-  };
+  const getAnswerStateLocal = (idx: number): AnswerState =>
+    getAnswerState(idx, { revealState, disabledAnswers, selectedAnswer, question });
 
   const timerRunning =
     settings.timerEnabled &&
@@ -623,7 +625,7 @@ export function GameplayScreen(props: GameplayScreenProps) {
             <AnswerBox
               letter={["A", "B", "C", "D"][idx] as "A" | "B" | "C" | "D"}
               text={ans}
-              state={getAnswerState(idx)}
+              state={getAnswerStateLocal(idx)}
               index={idx}
               onClick={() => handleAnswerClick(idx)}
             />
