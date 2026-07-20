@@ -21,18 +21,16 @@ import {
 import { AnswerState, ContestantInfo } from "@/lib/millionaire/state";
 import { getAnswerState } from "@/lib/millionaire/answerStateUtil";
 import {
+  runCorrectSequence,
+  runWrongSequence,
+  runDoubleDipMiss,
+  suspenseDuration,
+  type GameplayDeps,
+} from "@/lib/millionaire/revealphases";
+import {
   MOC3_SAFE_HAVEN_LEVEL,
   MIDDLE_VIDEO_LEVEL,
-  REVEAL_TEXT_HIDE_MS,
-  SUSPENSE_MIN_MS,
-  SUSPENSE_MAX_BONUS_MS,
-  SAFE_HAVEN_FADE_OUT_MS,
-  SAFE_HAVEN_FRAME_SHOW_DELAY_MS,
-  SAFE_HAVEN_FRAME_VISIBLE_MS,
-  SAFE_HAVEN_FRAME_ORDINARY_MS,
-  MOC3_MONEY_LADDER_DELAY_MS,
   WRONG_REVEAL_MS,
-  DOUBLE_DIP_FIRST_MISS_MS,
   LIFELINE_NOTICE_MS,
   ANSWER_INDICES,
 } from "@/lib/millionaire/gameTuning";
@@ -148,6 +146,48 @@ export function GameplayScreen(props: GameplayScreenProps) {
     };
   }, []);
 
+  // Gather every setter / callback the extracted phase functions need.
+  const buildDeps = useCallback(
+    (): GameplayDeps => ({
+      question,
+      step,
+      currentLevel,
+      totalQuestions,
+      selectedAnswer: selectedAnswer ?? -1,
+      doubleDipActive,
+      doubleDipGuessesLeft,
+      disabledAnswers,
+      schedule,
+      setRevealState,
+      setSelectedAnswer,
+      setFadeOutContent,
+      setSafeHavenAmount,
+      setShowSafeHavenFrame,
+      setShowSafeHavenMoneyLadder,
+      setShowMiddleVideo,
+      setDisabledAnswers,
+      setDoubleDipActive,
+      setDoubleDipGuessesLeft,
+      onCorrect,
+      onWrong,
+      makeSkippable,
+    }),
+    [
+      question,
+      step,
+      currentLevel,
+      totalQuestions,
+      selectedAnswer,
+      doubleDipActive,
+      doubleDipGuessesLeft,
+      disabledAnswers,
+      schedule,
+      makeSkippable,
+      onCorrect,
+      onWrong,
+    ]
+  );
+
   const handleAnswerClick = useCallback(
     (idx: number) => {
       if (revealState !== "idle" && revealState !== "selected") return;
@@ -168,117 +208,28 @@ export function GameplayScreen(props: GameplayScreenProps) {
     audioManager.sfx("suspense");
 
     // Suspense grows with the stakes: 1.5s early, up to 3s near the top
-    const progress = totalQuestions > 1 ? (currentLevel - 1) / (totalQuestions - 1) : 0;
-    const suspenseMs = SUSPENSE_MIN_MS + Math.round(progress * SUSPENSE_MAX_BONUS_MS);
+    const suspenseMs = suspenseDuration(currentLevel, totalQuestions);
 
     schedule(() => {
       audioManager.stopSuspense();
       const isCorrect = selectedAnswer === question.correct;
       if (isCorrect) {
-        setRevealState("correct");
-        audioManager.music("dapandung");
-        
-        // Hide reveal text after 2s
-        schedule(() => {
-          setRevealState("idle");
-        }, REVEAL_TEXT_HIDE_MS);
-
-        const isSafeHavenStop = (step?.safe ?? false) && currentLevel < totalQuestions;
-
-        if (isSafeHavenStop) {
-          schedule(() => {
-            // Special audio for level 3 safe haven only
-            if (currentLevel === MOC3_SAFE_HAVEN_LEVEL) {
-              const moc3Audio = new Audio("/moc3.mp3");
-              moc3Audio.play().catch((e) => console.error("moc3 play failed:", e));
-              moc3Audio.addEventListener('ended', () => {
-                const mocintroAudio = new Audio("/mocintro.mp3");
-                mocintroAudio.play().catch((e) => console.error("mocintro play failed:", e));
-              });
-            }
-            
-            setFadeOutContent(true);
-            schedule(() => {
-              setSafeHavenAmount(step.amount);
-              setShowSafeHavenFrame(true);
-              schedule(() => {
-                setShowSafeHavenFrame(false);
-                
-                // Special handling for level 3: show money ladder after 6s (wait for moc3 to finish)
-                if (currentLevel === MOC3_SAFE_HAVEN_LEVEL) {
-                  schedule(() => {
-                    setShowSafeHavenMoneyLadder(true);
-                  }, MOC3_MONEY_LADDER_DELAY_MS);
-                } else if (currentLevel === MIDDLE_VIDEO_LEVEL) {
-                  // Level 6: Start middle video sequence
-                  setFadeOutContent(false);
-                  setShowMiddleVideo(true);
-                } else {
-                  setFadeOutContent(false);
-                  if (doubleDipActive) {
-                    setDoubleDipActive(false);
-                    setDoubleDipGuessesLeft(0);
-                  }
-                  onCorrect(currentLevel + 1);
-                }
-              }, SAFE_HAVEN_FRAME_VISIBLE_MS);
-            }, SAFE_HAVEN_FADE_OUT_MS);
-          }, SAFE_HAVEN_FRAME_SHOW_DELAY_MS);
-        } else {
-          // Non-safe-haven correct answer: show frame for ALL levels
-          schedule(() => {
-            setFadeOutContent(true);
-            schedule(() => {
-              setSafeHavenAmount(step.amount);
-              setShowSafeHavenFrame(true);
-              schedule(() => {
-                setShowSafeHavenFrame(false);
-                setFadeOutContent(false);
-                if (doubleDipActive) {
-                  setDoubleDipActive(false);
-                  setDoubleDipGuessesLeft(0);
-                }
-                onCorrect(currentLevel + 1);
-              }, SAFE_HAVEN_FRAME_ORDINARY_MS);
-            }, SAFE_HAVEN_FADE_OUT_MS);
-          }, SAFE_HAVEN_FRAME_SHOW_DELAY_MS);
-        }
+        runCorrectSequence(buildDeps());
       } else if (doubleDipActive && doubleDipGuessesLeft > 1) {
-        // === Double Dip, first miss ===
-        // Mark ONLY the picked answer wrong (never reveal the correct one),
-        // then return to idle with that answer disabled for guess #2.
-        setRevealState("dip_wrong");
-        audioManager.sfx("wrong");
-        const finishDip = makeSkippable(() => {
-          setRevealState("idle");
-          setSelectedAnswer(null);
-          setDisabledAnswers(new Set([...disabledAnswers, selectedAnswer]));
-          setDoubleDipGuessesLeft(doubleDipGuessesLeft - 1);
-        });
-        schedule(finishDip, DOUBLE_DIP_FIRST_MISS_MS);
+        runDoubleDipMiss(buildDeps());
       } else {
-        // Wrong for real (second dip guess counts as a normal answer)
-        setRevealState("wrong");
-        audioManager.sfx("wrong");
-        schedule(makeSkippable(onWrong), WRONG_REVEAL_MS);
+        runWrongSequence(buildDeps());
       }
     }, suspenseMs);
   }, [
     selectedAnswer,
     question,
-    step,
     currentLevel,
     totalQuestions,
-    onCorrect,
-    onWrong,
     doubleDipActive,
     doubleDipGuessesLeft,
-    disabledAnswers,
-    setDisabledAnswers,
-    setDoubleDipActive,
-    setDoubleDipGuessesLeft,
+    buildDeps,
     schedule,
-    makeSkippable,
   ]);
 
   const handleCancelFinal = useCallback(() => {
