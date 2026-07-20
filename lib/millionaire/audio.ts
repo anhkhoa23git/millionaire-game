@@ -14,12 +14,14 @@ export type SfxName =
   | "timerWarning"
   | "lifeline";
 
-export type MusicName = "contestant" | "ladder" | "safeHaven";
+export type MusicName = "contestant" | "ladder" | "safeHaven" | "dapandung" | "mocintro";
 
 const MUSIC_FILES: Record<MusicName, string> = {
   contestant: "/contestant.mp3",
   ladder: "/ladder1.mp3",
   safeHaven: "/safe-haven-3.ogg",
+  dapandung: "/dapandung.mp3",
+  mocintro: "/mocintro.mp3",
 };
 
 interface ToneStep {
@@ -210,7 +212,15 @@ class AudioManager {
     const audio = new Audio(MUSIC_FILES[name]);
     audio.volume = this.musicVolume;
     audio.loop = loop;
-    audio.play().catch((err) => console.warn("Music play failed:", err));
+    // Preload to avoid interruption
+    audio.preload = "auto";
+    audio.play().catch((err) => {
+      console.warn(`Music play failed for ${name}:`, err);
+      // Retry once after short delay
+      setTimeout(() => {
+        audio.play().catch(() => {});
+      }, 100);
+    });
     this.currentMusic = audio;
   }
 

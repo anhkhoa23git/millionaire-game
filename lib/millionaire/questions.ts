@@ -54,7 +54,7 @@ export const DEFAULT_QUESTIONS: Question[] = [
   },
   {
     question: "Who is the most handsome?",
-    answers: ["Mr. Tâm", "Mr. Trung", "Mr. Quyền", "Mr. Bảo"],
+    answers: ["Mr. Tâm", "Mr. Trung", "Mr. Quyền", "Mr. Duy"],
     correct: 3,
   },
 ];
