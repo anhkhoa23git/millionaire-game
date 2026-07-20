@@ -1,5 +1,7 @@
 // Game settings — localStorage-backed.
 
+import { MIN_QUESTIONS, MAX_QUESTIONS } from "./gameTuning";
+
 const STORAGE_KEY = "millionaire.settings.v1";
 
 export interface GameSettings {
@@ -10,6 +12,14 @@ export interface GameSettings {
   musicVolume: number; // 0..1
   // Pinned top prize (last question). 0 = auto (double up from 200).
   topPrize: number;
+  // Number of questions in a game (player-selectable, 3..15).
+  totalQuestions: number;
+}
+
+// Keep totalQuestions within the supported bounds.
+export function clampTotalQuestions(n: number): number {
+  if (!Number.isFinite(n)) return MIN_QUESTIONS;
+  return Math.min(MAX_QUESTIONS, Math.max(MIN_QUESTIONS, Math.round(n)));
 }
 
 export const DEFAULT_SETTINGS: GameSettings = {
@@ -18,6 +28,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   sfxVolume: 0.7,
   musicVolume: 0.6,
   topPrize: 0,
+  totalQuestions: 9,
 };
 
 export function loadSettings(): GameSettings {
@@ -26,7 +37,9 @@ export function loadSettings(): GameSettings {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_SETTINGS;
     const parsed = JSON.parse(raw);
-    return { ...DEFAULT_SETTINGS, ...parsed };
+    const merged = { ...DEFAULT_SETTINGS, ...parsed };
+    merged.totalQuestions = clampTotalQuestions(merged.totalQuestions);
+    return merged;
   } catch {
     return DEFAULT_SETTINGS;
   }

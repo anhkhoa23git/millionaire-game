@@ -8,6 +8,7 @@ import {
 } from "./revealphases";
 import type { Question } from "./questions";
 import type { PrizeStep } from "./prize";
+import { firstSafeHavenLevel, middleVideoLevel } from "./prize";
 
 const Q: Question = { question: "Q", answers: ["A", "B", "C", "D"], correct: 0 };
 
@@ -19,6 +20,8 @@ function makeDeps(overrides: Partial<GameplayDeps> = {}): GameplayDeps {
     currentLevel: 1,
     totalQuestions: 9,
     selectedAnswer: 0,
+    firstSafeHavenLevel: firstSafeHavenLevel(9),
+    middleVideoLevel: middleVideoLevel(9),
     doubleDipActive: false,
     doubleDipGuessesLeft: 0,
     disabledAnswers: new Set<number>(),
@@ -75,6 +78,9 @@ describe("runCorrectSequence", () => {
   it("level 6 safe haven -> mounts middle video", () => {
     const d = makeDeps({
       currentLevel: 6,
+      totalQuestions: 9,
+      firstSafeHavenLevel: firstSafeHavenLevel(9),
+      middleVideoLevel: middleVideoLevel(9),
       step: { level: 6, amount: 1000, safe: true },
     });
     runCorrectSequence(d);

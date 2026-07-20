@@ -7,10 +7,10 @@ import {
   resetToDefault,
   exportJson,
   importJson,
-  MIN_QUESTIONS,
-  MAX_QUESTIONS,
 } from "@/lib/millionaire/questionStore";
 import { buildPrizeLadder } from "@/lib/millionaire/prize";
+import { MIN_QUESTIONS, MAX_QUESTIONS } from "@/lib/millionaire/gameTuning";
+import { clampTotalQuestions } from "@/lib/millionaire/settings";
 import { QuestionEditor } from "./QuestionEditor";
 import { audioManager } from "@/lib/millionaire/audio";
 
@@ -19,6 +19,8 @@ interface CustomizeScreenProps {
   onQuestionsChange: (qs: Question[]) => void;
   topPrize: number;                      // 0 = auto (double up from 200)
   onTopPrizeChange: (value: number) => void;
+  totalQuestions: number;                // player-selectable total (3..15)
+  onTotalQuestionsChange: (value: number) => void;
   onBack: () => void;
 }
 
@@ -30,16 +32,19 @@ const PRIZE_PRESETS: { label: string; value: number }[] = [
   { label: "150 triệu", value: 150_000_000 },
 ];
 
-export function CustomizeScreen({ questions, onQuestionsChange, topPrize, onTopPrizeChange, onBack }: CustomizeScreenProps) {
+export function CustomizeScreen({ questions, onQuestionsChange, topPrize, onTopPrizeChange, totalQuestions, onTotalQuestionsChange, onBack }: CustomizeScreenProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null); // index being edited
   const [adding, setAdding] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const ladder = useMemo(
-    () => buildPrizeLadder(questions.length, topPrize),
-    [questions.length, topPrize]
+    () => buildPrizeLadder(totalQuestions, topPrize),
+    [totalQuestions, topPrize]
   );
+
+  // How many questions short of the chosen total (blocks Play).
+  const missingQuestions = Math.max(0, totalQuestions - questions.length);
 
   const persist = (next: Question[]) => {
     onQuestionsChange(next);
@@ -200,6 +205,42 @@ export function CustomizeScreen({ questions, onQuestionsChange, topPrize, onTopP
             />
           ))}
         </div>
+      </div>
+
+      {/* Total questions slider */}
+      <div
+        className="flex items-center flex-wrap gap-3"
+        style={{ padding: "0 clamp(12px, 3cqw, 40px) clamp(8px, 1.5cqh, 16px)" }}
+      >
+        <span
+          className="text-[#D4AF37] font-bold flex-shrink-0"
+          style={{ fontFamily: "Arial, sans-serif", fontSize: "clamp(14px, 1.6cqw, 17px)" }}
+        >
+          Số lượng câu hỏi:
+        </span>
+        <input
+          type="range"
+          min={MIN_QUESTIONS}
+          max={MAX_QUESTIONS}
+          step={1}
+          value={totalQuestions}
+          onChange={(e) => onTotalQuestionsChange(clampTotalQuestions(Number(e.target.value)))}
+          style={{ width: "clamp(160px, 28cqw, 280px)", accentColor: "#D4AF37" }}
+        />
+        <span
+          className="text-white font-black"
+          style={{ fontFamily: "Arial, sans-serif", fontSize: "clamp(15px, 1.7cqw, 19px)" }}
+        >
+          {totalQuestions} câu{totalQuestions === MAX_QUESTIONS ? " (tối đa)" : ""}
+        </span>
+        {missingQuestions > 0 && (
+          <span
+            className="text-[#FF6B6B] font-bold"
+            style={{ fontFamily: "Arial, sans-serif", fontSize: "clamp(13px, 1.4cqw, 15px)" }}
+          >
+            (thiếu {missingQuestions} câu)
+          </span>
+        )}
       </div>
 
       {notice && (

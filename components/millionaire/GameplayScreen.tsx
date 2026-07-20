@@ -37,10 +37,10 @@ import {
   type Level6Deps,
 } from "@/lib/millionaire/level6video";
 import {
-  MOC3_SAFE_HAVEN_LEVEL,
   WRONG_REVEAL_MS,
   LIFELINE_NOTICE_MS,
 } from "@/lib/millionaire/gameTuning";
+import { firstSafeHavenLevel, middleVideoLevel } from "@/lib/millionaire/prize";
 
 interface GameplayScreenProps {
   questions: Question[];
@@ -161,6 +161,8 @@ export function GameplayScreen(props: GameplayScreenProps) {
       currentLevel,
       totalQuestions,
       selectedAnswer: selectedAnswer ?? -1,
+      firstSafeHavenLevel: firstSafeHavenLevel(totalQuestions),
+      middleVideoLevel: middleVideoLevel(totalQuestions),
       doubleDipActive,
       doubleDipGuessesLeft,
       disabledAnswers,
@@ -260,6 +262,7 @@ export function GameplayScreen(props: GameplayScreenProps) {
   const buildLevel6Deps = useCallback(
     (): Level6Deps => ({
       currentLevel,
+      totalQuestions,
       doubleDipActive,
       setShowSafeHavenMoneyLadder,
       setFadeOutContent,
@@ -712,7 +715,7 @@ export function GameplayScreen(props: GameplayScreenProps) {
       {/* ===== Safe Haven Money Ladder ===== */}
       <SafeHavenMoneyLadder 
         visible={showSafeHavenMoneyLadder} 
-        safeHavenLevel={currentLevel === MOC3_SAFE_HAVEN_LEVEL ? MOC3_SAFE_HAVEN_LEVEL : level6SafeHavenLevel} 
+        safeHavenLevel={currentLevel === firstSafeHavenLevel(totalQuestions) ? firstSafeHavenLevel(totalQuestions) : level6SafeHavenLevel} 
         onContinue={handleMoneyLadderContinue}
       />
 
