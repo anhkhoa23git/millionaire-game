@@ -50,6 +50,11 @@ type RevealState =
   | "wrong"          // red reveal — question lost (or timed out)
   | "dip_wrong";     // Double Dip first miss: mark red, do NOT reveal the answer
 
+// Levels with special cinematic sequences. Kept as named constants so the
+// flow is obvious and easy to retune without hunting magic numbers.
+const MOC3_SAFE_HAVEN_LEVEL = 3;   // moc3 + mocintro audio sting
+const MIDDLE_VIDEO_LEVEL = 6;      // middle video → middle intro → darkness video
+
 export function GameplayScreen(props: GameplayScreenProps) {
   const {
     questions,
@@ -187,11 +192,11 @@ export function GameplayScreen(props: GameplayScreenProps) {
                 setShowSafeHavenFrame(false);
                 
                 // Special handling for level 3: show money ladder after 6s (wait for moc3 to finish)
-                if (currentLevel === 3) {
+                if (currentLevel === MOC3_SAFE_HAVEN_LEVEL) {
                   schedule(() => {
                     setShowSafeHavenMoneyLadder(true);
                   }, 6000);
-                } else if (currentLevel === 6) {
+                } else if (currentLevel === MIDDLE_VIDEO_LEVEL) {
                   // Level 6: Start middle video sequence
                   setFadeOutContent(false);
                   setShowMiddleVideo(true);
@@ -281,7 +286,6 @@ export function GameplayScreen(props: GameplayScreenProps) {
   }, [revealState, timedOut, onTimeout, schedule, makeSkippable]);
 
   const handleMoneyLadderContinue = useCallback(() => {
-    console.log('[DEBUG] Money Ladder Continue - currentLevel:', currentLevel);
     setShowSafeHavenMoneyLadder(false);
     setFadeOutContent(false);
     if (doubleDipActive) {
@@ -290,8 +294,7 @@ export function GameplayScreen(props: GameplayScreenProps) {
     }
     
     // Level 6: Start darkness video after money ladder
-    if (currentLevel === 6) {
-      console.log('[DEBUG] Triggering darkness video for level 6');
+    if (currentLevel === MIDDLE_VIDEO_LEVEL) {
       setShowDarknessVideo(true);
     } else {
       onCorrect(currentLevel + 1);
@@ -311,7 +314,6 @@ export function GameplayScreen(props: GameplayScreenProps) {
   }, []);
 
   const handleDarknessVideoEnd = useCallback(() => {
-    console.log('[DEBUG] Darkness video ended - currentLevel:', currentLevel);
     setShowDarknessVideo(false);
     if (doubleDipActive) {
       setDoubleDipActive(false);
@@ -754,7 +756,7 @@ export function GameplayScreen(props: GameplayScreenProps) {
       {/* ===== Safe Haven Money Ladder ===== */}
       <SafeHavenMoneyLadder 
         visible={showSafeHavenMoneyLadder} 
-        safeHavenLevel={currentLevel === 3 ? 3 : level6SafeHavenLevel} 
+        safeHavenLevel={currentLevel === MOC3_SAFE_HAVEN_LEVEL ? MOC3_SAFE_HAVEN_LEVEL : level6SafeHavenLevel} 
         onContinue={handleMoneyLadderContinue}
       />
 
