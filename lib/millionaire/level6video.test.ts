@@ -6,11 +6,12 @@ import {
   onDarknessVideoEnd,
   type Level6Deps,
 } from "./level6video";
-import { MIDDLE_VIDEO_LEVEL } from "./gameTuning";
+import { middleVideoLevel } from "./prize";
 
 function makeDeps(overrides: Partial<Level6Deps> = {}): Level6Deps {
   return {
     currentLevel: 3,
+    totalQuestions: 9,
     doubleDipActive: false,
     setShowSafeHavenMoneyLadder: vi.fn(),
     setFadeOutContent: vi.fn(),
@@ -34,7 +35,7 @@ describe("continueFromMoneyLadder", () => {
   });
 
   it("level 6 -> shows darkness video, does not advance", () => {
-    const d = makeDeps({ currentLevel: MIDDLE_VIDEO_LEVEL, doubleDipActive: true });
+    const d = makeDeps({ currentLevel: middleVideoLevel(9), doubleDipActive: true, totalQuestions: 9 });
     continueFromMoneyLadder(d);
     expect(d.setShowDarknessVideo).toHaveBeenCalledWith(true);
     expect(d.onCorrect).not.toHaveBeenCalled();

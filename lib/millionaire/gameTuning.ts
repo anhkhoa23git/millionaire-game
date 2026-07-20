@@ -4,13 +4,19 @@
 // through 800 lines of timeout chains.
 
 // ---------------------------------------------------------------------------
-// Special levels
+// Question count bounds (player-selectable total)
 // ---------------------------------------------------------------------------
 
-/** Level that plays the moc3 + mocintro audio sting on a correct safe-haven stop. */
-export const MOC3_SAFE_HAVEN_LEVEL = 3;
-/** Level that triggers the middle-video → middle-intro → darkness-video sequence. */
-export const MIDDLE_VIDEO_LEVEL = 6;
+/** Minimum number of questions a game can have. */
+export const MIN_QUESTIONS = 3;
+/** Maximum number of questions a game can have. */
+export const MAX_QUESTIONS = 15;
+
+// NOTE: The moc3 audio level and the middle-video level are NOT fixed
+// constants anymore — they depend on the total question count. Compute them
+// with `firstSafeHavenLevel(total)` and `middleVideoLevel(total)` from
+// lib/millionaire/prize.ts so the sequence adapts to any length (e.g. 15
+// questions -> safe havens at 5/10/15, middle video at 10, moc3 at 5).
 
 // ---------------------------------------------------------------------------
 // Reveal / suspense timing (ms)

@@ -9,7 +9,7 @@ import { Question } from "@/lib/millionaire/questions";
 import { loadQuestions } from "@/lib/millionaire/questionStore";
 import { buildPrizeLadder, computeWinnings, GameOutcome } from "@/lib/millionaire/prize";
 import { appendGameRecord } from "@/lib/millionaire/history";
-import { GameSettings, loadSettings, saveSettings } from "@/lib/millionaire/settings";
+import { GameSettings, loadSettings, saveSettings, clampTotalQuestions } from "@/lib/millionaire/settings";
 import { audioManager } from "@/lib/millionaire/audio";
 import { ContestantInfo, ScreenId } from "@/lib/millionaire/state";
 import { LifelineId } from "@/lib/millionaire/lifelines";
@@ -100,8 +100,8 @@ export function useGameFlow(): GameFlow {
   }, []);
 
   const ladder = useMemo(
-    () => buildPrizeLadder(questions.length, settings.topPrize),
-    [questions, settings.topPrize]
+    () => buildPrizeLadder(settings.totalQuestions, settings.topPrize),
+    [settings.totalQuestions, settings.topPrize]
   );
 
   const recordGame = useCallback(
@@ -139,7 +139,16 @@ export function useGameFlow(): GameFlow {
   const handlePlay = useCallback(() => {
     // Reset all state for new game; re-read questions so edits apply immediately
     audioManager.sfx("buttonClick");
-    setQuestions(loadQuestions());
+    const loaded = loadQuestions();
+    // Require at least as many questions as the chosen total.
+    if (loaded.length < settings.totalQuestions) {
+      alert(
+        `Cần ít nhất ${settings.totalQuestions} câu hỏi để chơi (hiện có ${loaded.length}). ` +
+          `Hãy thêm câu hỏi trong màn hình Customize.`
+      );
+      return;
+    }
+    setQuestions(loaded);
     setCurrentLevel(1);
     setFinalLevel(1);
     setUsedLifelines(new Set());
@@ -149,7 +158,7 @@ export function useGameFlow(): GameFlow {
     resetLogoPosition();
     setShowLogo(false);
     setScreen("intro_video");
-  }, [resetLogoPosition]);
+  }, [resetLogoPosition, settings.totalQuestions]);
 
   const handleCustomize = useCallback(() => {
     audioManager.sfx("buttonClick");

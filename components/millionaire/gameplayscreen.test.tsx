@@ -25,6 +25,7 @@ const SETTINGS: GameSettings = {
   sfxVolume: 0.7,
   musicVolume: 0.6,
   topPrize: 0,
+  totalQuestions: QUESTIONS.length,
 };
 
 const CONTESTANT: ContestantInfo = { name: "Test", location: "HN" };

@@ -34,6 +34,24 @@ export function safeHavenLevels(totalQuestions: number): Set<number> {
   return havens;
 }
 
+// Sorted safe-haven levels for a given total (ascending).
+export function sortedSafeHavens(totalQuestions: number): number[] {
+  return [...safeHavenLevels(totalQuestions)].sort((a, b) => a - b);
+}
+
+// First safe-haven level — where the moc3 intro audio sting plays.
+export function firstSafeHavenLevel(totalQuestions: number): number {
+  const havens = sortedSafeHavens(totalQuestions);
+  return havens[0] ?? totalQuestions;
+}
+
+// Second safe-haven level — where the middle-video sequence plays.
+// Falls back to the final question if there is no second haven.
+export function middleVideoLevel(totalQuestions: number): number {
+  const havens = sortedSafeHavens(totalQuestions);
+  return havens[1] ?? havens[havens.length - 1] ?? totalQuestions;
+}
+
 // Auto ladder: start at BASE_AMOUNT and double up with nice rounding.
 function amountsFromBase(totalQuestions: number): number[] {
   const amounts: number[] = [];

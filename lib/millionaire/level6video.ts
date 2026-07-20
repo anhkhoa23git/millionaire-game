@@ -3,10 +3,11 @@
 // audited, testable place. All functions are plain (no React) and receive a
 // Level6Deps object with the setters / callbacks they need.
 
-import { MIDDLE_VIDEO_LEVEL } from "./gameTuning";
+import { middleVideoLevel } from "./prize";
 
 export interface Level6Deps {
   currentLevel: number;
+  totalQuestions: number;
   doubleDipActive: boolean;
   // setters
   setShowSafeHavenMoneyLadder: (v: boolean) => void;
@@ -35,7 +36,7 @@ export function continueFromMoneyLadder(deps: Level6Deps) {
   deps.setFadeOutContent(false);
   clearDoubleDip(deps);
 
-  if (deps.currentLevel === MIDDLE_VIDEO_LEVEL) {
+  if (deps.currentLevel === middleVideoLevel(deps.totalQuestions)) {
     deps.setShowDarknessVideo(true);
   } else {
     deps.onCorrect(deps.currentLevel + 1);

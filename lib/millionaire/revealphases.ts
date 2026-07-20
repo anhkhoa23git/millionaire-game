@@ -8,8 +8,6 @@
 
 import { audioManager } from "./audio";
 import {
-  MOC3_SAFE_HAVEN_LEVEL,
-  MIDDLE_VIDEO_LEVEL,
   REVEAL_TEXT_HIDE_MS,
   SUSPENSE_MIN_MS,
   SUSPENSE_MAX_BONUS_MS,
@@ -31,6 +29,9 @@ export interface GameplayDeps {
   currentLevel: number;
   totalQuestions: number;
   selectedAnswer: number;
+  // dynamic special levels (depend on totalQuestions)
+  firstSafeHavenLevel: number;
+  middleVideoLevel: number;
   // double dip state
   doubleDipActive: boolean;
   doubleDipGuessesLeft: number;
@@ -102,10 +103,10 @@ export function runCorrectSequence(deps: GameplayDeps) {
 }
 
 function runSafeHavenFrame(deps: GameplayDeps) {
-  const { currentLevel, step, schedule, setFadeOutContent } = deps;
+  const { currentLevel, step, schedule, setFadeOutContent, firstSafeHavenLevel, middleVideoLevel } = deps;
 
   schedule(() => {
-    if (currentLevel === MOC3_SAFE_HAVEN_LEVEL) playMoc3Intro();
+    if (currentLevel === firstSafeHavenLevel) playMoc3Intro();
 
     setFadeOutContent(true);
     schedule(() => {
@@ -114,11 +115,11 @@ function runSafeHavenFrame(deps: GameplayDeps) {
       schedule(() => {
         deps.setShowSafeHavenFrame(false);
 
-        if (currentLevel === MOC3_SAFE_HAVEN_LEVEL) {
+        if (currentLevel === firstSafeHavenLevel) {
           // Wait for moc3 intro to finish before showing the money ladder
           schedule(() => deps.setShowSafeHavenMoneyLadder(true), MOC3_MONEY_LADDER_DELAY_MS);
-        } else if (currentLevel === MIDDLE_VIDEO_LEVEL) {
-          // Level 6: jump straight into the middle video sequence
+        } else if (currentLevel === middleVideoLevel) {
+          // Middle video sequence (safe haven #2)
           deps.setFadeOutContent(false);
           deps.setShowMiddleVideo(true);
         } else {

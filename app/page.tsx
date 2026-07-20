@@ -110,6 +110,8 @@ export default function Home() {
             onQuestionsChange={setQuestions}
             topPrize={settings.topPrize}
             onTopPrizeChange={(v) => handleSaveSettings({ ...settings, topPrize: v })}
+            totalQuestions={settings.totalQuestions}
+            onTotalQuestionsChange={(v) => handleSaveSettings({ ...settings, totalQuestions: v })}
             onBack={() => setScreen("menu")}
           />
         )}
