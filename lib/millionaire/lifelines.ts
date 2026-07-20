@@ -50,3 +50,32 @@ export function simulateAudiencePoll(correctIndex: number): number[] {
   
   return results;
 }
+
+// 50:50 helper: given the correct answer and currently disabled answers,
+// return a NEW set that also disables two wrong answers (keeping the correct
+// one and one random wrong answer visible).
+export function computeFiftyFiftyDisabled(
+  correctIndex: number,
+  disabledAnswers: Set<number>,
+  rng: () => number = Math.random
+): Set<number> {
+  const wrongIndices = [0, 1, 2, 3].filter((i) => i !== correctIndex);
+  // Fisher–Yates shuffle using the injected rng (testable)
+  for (let i = wrongIndices.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [wrongIndices[i], wrongIndices[j]] = [wrongIndices[j], wrongIndices[i]];
+  }
+  return new Set([...disabledAnswers, wrongIndices[0], wrongIndices[1]]);
+}
+
+// 50:50 and Double Dip cannot be combined on the same question. Returns true
+// when `id` is blocked by the other lifeline's prior use on this question.
+export function isBlockedLifelineCombo(
+  id: LifelineId,
+  fiftyUsedHere: boolean,
+  doubleDipActive: boolean
+): boolean {
+  if (id === "double" && fiftyUsedHere) return true;
+  if (id === "fifty" && doubleDipActive) return true;
+  return false;
+}
