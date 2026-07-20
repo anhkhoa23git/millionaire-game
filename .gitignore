@@ -8,3 +8,12 @@ node_modules
 # Large original video files (use chunked versions under public/videos/)
 public/middle.mp4
 public/darknessau.mp4
+
+# Editor / AI tooling noise
+.claude/
+.idea/
+scripts/
+
+# Build artifacts
+tsconfig.tsbuildinfo
+next-env.d.ts
